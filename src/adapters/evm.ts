@@ -1,0 +1,263 @@
+import type { Chain } from "viem";
+import { createConfig, http, type Config, type CreateConnectorFn } from "wagmi";
+import { mainnet, sepolia } from "wagmi/chains";
+import { coinbaseWallet, injected, walletConnect } from "wagmi/connectors";
+
+import type { EvmWalletId, NormalizedWalletKitConfig, WalletDescriptor } from "../core";
+import { WALLET_ICONS } from "../ui/constants";
+
+export type EvmAdapter = {
+  config: Config;
+  connectors: CreateConnectorFn[];
+  wallets: WalletDescriptor[];
+};
+
+const CHAIN_MAP = {
+  mainnet,
+  sepolia,
+} as const;
+
+type EthereumProvider = {
+  isMetaMask?: boolean;
+  isOKXWallet?: boolean;
+  isOkxWallet?: boolean;
+  isPhantom?: boolean;
+  isCoinbaseWallet?: boolean;
+  isTrust?: boolean;
+  isBitKeep?: boolean;
+  providers?: EthereumProvider[];
+};
+
+type EvmWindowLike = {
+  ethereum?: EthereumProvider;
+  okxwallet?: EthereumProvider | { ethereum?: EthereumProvider };
+};
+
+function getEthereumProvider(windowArg?: unknown): EthereumProvider | undefined {
+  if (typeof window === "undefined") return undefined;
+  const targetWindow = (windowArg || window) as EvmWindowLike;
+  return targetWindow.ethereum;
+}
+
+function findMetaMaskProvider(windowArg?: unknown): EthereumProvider | undefined {
+  const ethereum = getEthereumProvider(windowArg);
+  if (!ethereum) return undefined;
+
+  // 1. Check if the root provider is ONLY MetaMask
+  if (ethereum.isMetaMask && !ethereum.isOKXWallet && !ethereum.isOkxWallet && !ethereum.isCoinbaseWallet) {
+    return ethereum;
+  }
+
+  // 2. Search in providers array
+  if (ethereum.providers?.length) {
+    return ethereum.providers.find(
+      (p) => p.isMetaMask && !p.isOKXWallet && !p.isOkxWallet && !p.isCoinbaseWallet
+    ) || ethereum.providers.find(p => p.isMetaMask);
+  }
+
+  return ethereum.isMetaMask ? ethereum : undefined;
+}
+
+function findOkxProvider(windowArg?: unknown): EthereumProvider | undefined {
+  if (typeof window === "undefined") return undefined;
+  const targetWindow = (windowArg || window) as EvmWindowLike;
+  
+  // 1. Check window.okxwallet (highest priority for OKX)
+  if (targetWindow.okxwallet) {
+    const okx = targetWindow.okxwallet as any;
+    return okx.ethereum || okx;
+  }
+
+  // 2. Check window.ethereum
+  const ethereum = targetWindow.ethereum;
+  if (!ethereum) return undefined;
+
+  if (ethereum.isOKXWallet || ethereum.isOkxWallet) return ethereum;
+
+  if (ethereum.providers?.length) {
+    return ethereum.providers.find(p => p.isOKXWallet || p.isOkxWallet);
+  }
+
+  return undefined;
+}
+
+export function createEvmAdapter(config: NormalizedWalletKitConfig): EvmAdapter | null {
+  if (!config.evm.enabled) {
+    return null;
+  }
+
+  const resolvedChains = config.evm.chains
+    .map((chainName) => CHAIN_MAP[chainName as keyof typeof CHAIN_MAP])
+    .filter(Boolean);
+
+  if (resolvedChains.length === 0) {
+    return null;
+  }
+
+  const chains = resolvedChains as unknown as [Chain, ...Chain[]];
+  const connectors = config.evm.wallets.flatMap((walletId) => {
+    if (walletId === "injected") {
+      return [injected()];
+    }
+
+    if (walletId === "metaMask") {
+      return [
+        injected({
+          target: {
+            id: "metaMask",
+            name: "MetaMask",
+            provider: (windowArg) => findMetaMaskProvider(windowArg) as any,
+          },
+        }),
+      ];
+    }
+
+    if (walletId === "okxWallet") {
+      return [
+        injected({
+          target: {
+            id: "okxWallet",
+            name: "OKX Wallet",
+            provider: (windowArg) => findOkxProvider(windowArg) as any,
+          },
+        }),
+      ];
+    }
+
+    if (walletId === "walletConnect") {
+      const projectId = config.evm.walletConnectProjectId;
+      if (!projectId) {
+        console.warn("WalletConnect Project ID is missing. WalletConnect will be disabled.");
+        return [];
+      }
+
+      return [
+        walletConnect({
+          projectId,
+          showQrModal: true,
+          qrModalOptions: {
+            themeMode: "dark",
+          },
+          metadata: {
+            name: "SNK Wallet Kit",
+            description: "React wallet connection SDK for EVM and Solana.",
+            url: typeof window !== "undefined" ? window.location.origin : "",
+            icons: ["https://avatars.githubusercontent.com/u/1"]
+          }
+        }),
+      ];
+    }
+
+    if (walletId === "coinbaseWallet") {
+      return [
+        coinbaseWallet({
+          appName: config.evm.coinbaseAppName ?? "SNK Wallet Kit",
+        }),
+      ];
+    }
+
+    return [];
+  });
+
+  const transports = Object.fromEntries(chains.map((chain) => [chain.id, http()]));
+
+  return {
+    config: createConfig({
+      chains,
+      connectors,
+      transports,
+      ssr: config.app.ssr,
+    }),
+    connectors,
+    wallets: config.evm.wallets.map(toEvmWalletDescriptor),
+  };
+}
+
+function toEvmWalletDescriptor(walletId: EvmWalletId): WalletDescriptor {
+  if (walletId === "metaMask") {
+    return {
+      namespace: "evm",
+      walletId,
+      name: "MetaMask",
+      icon: WALLET_ICONS.Metamask,
+      installed: !!findMetaMaskProvider(),
+      ready: true,
+      description: "Connect to your MetaMask wallet.",
+      downloadUrl: "https://metamask.io/",
+    };
+  }
+
+  if (walletId === "okxWallet") {
+    return {
+      namespace: "evm",
+      walletId,
+      name: "OKX Wallet",
+      icon: WALLET_ICONS.Okx,
+      installed: !!findOkxProvider(),
+      ready: true,
+      description: "Connect to your OKX Wallet.",
+      downloadUrl: "https://www.okx.com/web3",
+    };
+  }
+
+  if (walletId === "walletConnect") {
+    return {
+      namespace: "evm",
+      walletId,
+      name: "WalletConnect",
+      icon: WALLET_ICONS.WalletConnect,
+      installed: true,
+      ready: true,
+      description: "Connect with WalletConnect.",
+    };
+  }
+
+  if (walletId === "injected") {
+    let name = "Browser Wallet";
+    let icon: string | undefined = undefined;
+    let description = "Connect to your browser's injected wallet.";
+    const eth = getEthereumProvider();
+
+    if (eth) {
+      if (eth.isMetaMask) {
+        name = "MetaMask";
+        icon = WALLET_ICONS.Metamask;
+      } else if (eth.isOKXWallet) {
+        name = "OKX Wallet";
+        icon = WALLET_ICONS.Okx;
+      } else if (eth.isPhantom) {
+        name = "Phantom";
+      } else if (eth.isCoinbaseWallet) {
+        name = "Coinbase Wallet";
+      } else if (eth.isTrust) {
+        name = "Trust Wallet";
+      } else if (eth.isBitKeep) {
+        name = "Bitget Wallet";
+      }
+
+      if (name !== "Browser Wallet") {
+        description = `Connect to your ${name} extension.`;
+      }
+    }
+
+    return {
+      namespace: "evm",
+      walletId,
+      name,
+      icon,
+      installed: !!eth,
+      ready: true,
+      description,
+    };
+  }
+
+  return {
+    namespace: "evm",
+    walletId,
+    name: "Coinbase Wallet",
+    installed: true,
+    ready: true,
+    description: "Connect to Coinbase Wallet.",
+    downloadUrl: "https://www.coinbase.com/wallet",
+  };
+}

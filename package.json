@@ -1,0 +1,63 @@
+{
+  "name": "snk-wallet-kit",
+  "version": "0.1.0",
+  "description": "React wallet connection SDK for EVM and Solana.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "docs"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "npm run build:css && tsup src/index.ts --format esm,cjs --dts",
+    "build:css": "npx tailwindcss -i ./src/ui/styles.css -o ./dist/style.css && node scripts/bundle-css.js",
+    "dev": "npm run build:css && tsup src/index.ts --format esm,cjs --dts --watch --onSuccess \"node scripts/bundle-css.js\"",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "wallet",
+    "web3",
+    "wagmi",
+    "solana",
+    "react",
+    "nextjs"
+  ],
+  "peerDependencies": {
+    "react": "^18.2.0 || ^19.0.0",
+    "react-dom": "^18.2.0 || ^19.0.0"
+  },
+  "dependencies": {
+    "@solana/wallet-standard-features": "^1.3.0",
+    "@tanstack/react-query": "^5.90.5",
+    "@wallet-standard/app": "^1.1.0",
+    "@wallet-standard/base": "^1.1.0",
+    "@wallet-standard/features": "^1.1.0",
+    "@walletconnect/ethereum-provider": "^2.23.9",
+    "@walletconnect/modal": "^2.7.0",
+    "viem": "^2.48.11",
+    "wagmi": "^3.6.9"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "autoprefixer": "^10.5.0",
+    "clsx": "^2.1.1",
+    "postcss": "^8.5.14",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^3.4.19",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3"
+  }
+}
