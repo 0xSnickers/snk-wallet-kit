@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo, type ReactElement, type ReactNode } from "react";
 import { cn } from "../utils";
 import { useWallet, useWalletModal } from "../../react";

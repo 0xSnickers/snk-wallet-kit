@@ -1,3 +1,5 @@
+"use client";
+
 import { createContext, useContext } from "react";
 import { WalletKitError, type ConnectOptions, type NormalizedWalletKitConfig, type SignMessageResult, type SignableMessage, type SwitchChainOptions, type TransactionRequest, type TransactionResult, type WalletDescriptor, type WalletSession } from "../core";
 

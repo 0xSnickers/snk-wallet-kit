@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo } from "react";
 import { useWallet } from "./use-wallet";
 import type { ConnectOptions, SignMessageResult, SignableMessage, SwitchChainOptions, TransactionRequest, TransactionResult } from "../core";
