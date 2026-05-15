@@ -1,3 +1,5 @@
+"use client";
+
 export * from "./adapters/evm";
 export * from "./adapters/sol";
 export * from "./core";

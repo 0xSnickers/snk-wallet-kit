@@ -1,3 +1,5 @@
+"use client";
+
 export * from "./generated-styles";
 export * from "./components/ConnectWalletButton";
 export * from "./components/WalletSelectModal";

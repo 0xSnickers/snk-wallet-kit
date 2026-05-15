@@ -1,6 +1,6 @@
 {
   "name": "snk-wallet-kit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "React wallet connection SDK for EVM and Solana.",
   "license": "MIT",
   "type": "module",
