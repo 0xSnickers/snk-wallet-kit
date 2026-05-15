@@ -111,6 +111,48 @@ export default defineConfig({
 
 `snk-wallet-kit` injects its built CSS automatically when `WalletProvider` is used. No `import "snk-wallet-kit/dist/style.css"` step is required.
 
+### Advanced Provider Composition
+
+`WalletProvider` and `WalletKitProvider` share the same ready-to-use behavior. `WalletCoreProvider` works with your own `QueryClientProvider` and `WagmiProvider`, which keeps wagmi and react-query hooks available in the same tree.
+
+```tsx
+import {
+  WalletCoreProvider,
+  createWalletKitEvmConfig,
+  type WalletKitConfig,
+} from "snk-wallet-kit";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { WagmiProvider } from "wagmi";
+
+const config: WalletKitConfig = {
+  evm: {
+    enabled: true,
+    chains: ["mainnet", "sepolia"],
+    wallets: ["metaMask", "walletConnect"],
+    walletConnectProjectId: "YOUR_PROJECT_ID",
+  },
+};
+
+const queryClient = new QueryClient();
+const wagmiConfig = createWalletKitEvmConfig(config);
+
+export function Root() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <WagmiProvider config={wagmiConfig!}>
+        <WalletCoreProvider
+          config={config}
+          queryClient={queryClient}
+          wagmiConfig={wagmiConfig}
+        >
+          <App />
+        </WalletCoreProvider>
+      </WagmiProvider>
+    </QueryClientProvider>
+  );
+}
+```
+
 ### Config Behavior
 
 When you explicitly configure either `evm.wallets` or `sol.wallets`, the other namespace will be disabled by default. This ensures the wallet selection modal only shows the wallets you explicitly configure.
@@ -264,6 +306,48 @@ export default defineConfig({
 ### 样式说明
 
 当使用 `WalletProvider` 时，`snk-wallet-kit` 会自动注入已构建样式，无需再手动引入 `import "snk-wallet-kit/dist/style.css"`。
+
+### 高级 Provider 组合
+
+`WalletProvider` 和 `WalletKitProvider` 提供同一套开箱即用行为。`WalletCoreProvider` 适合和你自己的 `QueryClientProvider`、`WagmiProvider` 组合使用，应用树内可以直接复用 wagmi 和 react-query hooks。
+
+```tsx
+import {
+  WalletCoreProvider,
+  createWalletKitEvmConfig,
+  type WalletKitConfig,
+} from "snk-wallet-kit";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { WagmiProvider } from "wagmi";
+
+const config: WalletKitConfig = {
+  evm: {
+    enabled: true,
+    chains: ["mainnet", "sepolia"],
+    wallets: ["metaMask", "walletConnect"],
+    walletConnectProjectId: "YOUR_PROJECT_ID",
+  },
+};
+
+const queryClient = new QueryClient();
+const wagmiConfig = createWalletKitEvmConfig(config);
+
+export function Root() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <WagmiProvider config={wagmiConfig!}>
+        <WalletCoreProvider
+          config={config}
+          queryClient={queryClient}
+          wagmiConfig={wagmiConfig}
+        >
+          <App />
+        </WalletCoreProvider>
+      </WagmiProvider>
+    </QueryClientProvider>
+  );
+}
+```
 
 ### 配置行为
 

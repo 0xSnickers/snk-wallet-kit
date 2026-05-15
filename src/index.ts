@@ -8,3 +8,4 @@ export * from "./runtime";
 export * from "./ui/index";
 export * from "./hooks/index";
 export * from "./hooks/use-wallet";
+export { createWagmiConfig as createWalletKitEvmConfig } from "./adapters/evm";

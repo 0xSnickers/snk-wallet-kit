@@ -31,7 +31,7 @@ export const WalletModalContext = createContext<WalletModalContextValue | null>(
 export function useWallet(): WalletContextValue {
   const context = useContext(WalletContext);
   if (!context) {
-    throw new Error("useWallet must be used inside WalletProvider.");
+    throw new Error("useWallet requires WalletKitProvider or WalletCoreProvider.");
   }
   return context;
 }
@@ -39,7 +39,7 @@ export function useWallet(): WalletContextValue {
 export function useWalletModal(): WalletModalContextValue {
   const context = useContext(WalletModalContext);
   if (!context) {
-    throw new Error("useWalletModal must be used inside WalletProvider.");
+    throw new Error("useWalletModal requires WalletKitProvider or WalletCoreProvider.");
   }
   return context;
 }

@@ -81,7 +81,7 @@ function findOkxProvider(windowArg?: unknown): EthereumProvider | undefined {
   return undefined;
 }
 
-export function createEvmAdapter(config: NormalizedWalletKitConfig): EvmAdapter | null {
+function resolveChains(config: NormalizedWalletKitConfig): [Chain, ...Chain[]] | null {
   if (!config.evm.enabled) {
     return null;
   }
@@ -94,8 +94,11 @@ export function createEvmAdapter(config: NormalizedWalletKitConfig): EvmAdapter 
     return null;
   }
 
-  const chains = resolvedChains as unknown as [Chain, ...Chain[]];
-  const connectors = config.evm.wallets.flatMap((walletId) => {
+  return resolvedChains as unknown as [Chain, ...Chain[]];
+}
+
+function createEvmConnectors(config: NormalizedWalletKitConfig): CreateConnectorFn[] {
+  return config.evm.wallets.flatMap((walletId) => {
     if (walletId === "injected") {
       return [injected()];
     }
@@ -158,16 +161,37 @@ export function createEvmAdapter(config: NormalizedWalletKitConfig): EvmAdapter 
 
     return [];
   });
+}
 
+export function createWagmiConfig(config: NormalizedWalletKitConfig): Config | null {
+  const chains = resolveChains(config);
+  if (!chains) {
+    return null;
+  }
+
+  const connectors = createEvmConnectors(config);
   const transports = Object.fromEntries(chains.map((chain) => [chain.id, http()]));
 
+  return createConfig({
+    chains,
+    connectors,
+    transports,
+    ssr: config.app.ssr,
+  });
+}
+
+export function createEvmAdapter(
+  config: NormalizedWalletKitConfig,
+  wagmiConfig: Config | null = createWagmiConfig(config),
+): EvmAdapter | null {
+  if (!config.evm.enabled || !wagmiConfig) {
+    return null;
+  }
+
+  const connectors = createEvmConnectors(config);
+
   return {
-    config: createConfig({
-      chains,
-      connectors,
-      transports,
-      ssr: config.app.ssr,
-    }),
+    config: wagmiConfig,
     connectors,
     wallets: config.evm.wallets.map(toEvmWalletDescriptor),
   };

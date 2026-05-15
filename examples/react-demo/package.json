@@ -8,9 +8,12 @@
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.100.10",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "snk-wallet-kit": "file:../.."
+    "snk-wallet-kit": "file:../..",
+    "viem": "^2.49.2",
+    "wagmi": "^3.6.15"
   },
   "devDependencies": {
     "@types/node": "^24.9.1",
