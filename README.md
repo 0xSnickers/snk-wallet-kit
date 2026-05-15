@@ -4,7 +4,7 @@
 
 ## English
 
-`snk-wallet-kit` is a React wallet connection SDK that unifies **EVM** and **Solana** wallet flows with ready-to-use UI components and headless hooks.
+`snk-wallet-kit` is a minimal React wallet connection toolkit built on top of wagmi. It unifies **EVM** and **Solana** wallet flows with ready-to-use UI components and headless hooks, supporting both React and Next.js.
 
 ---
 
@@ -111,6 +111,10 @@ export default defineConfig({
 
 `snk-wallet-kit` injects its built CSS automatically when `WalletProvider` is used. No `import "snk-wallet-kit/dist/style.css"` step is required.
 
+### Config Behavior
+
+When you explicitly configure either `evm.wallets` or `sol.wallets`, the other namespace will be disabled by default. This ensures the wallet selection modal only shows the wallets you explicitly configure.
+
 ---
 
 ## API
@@ -154,7 +158,7 @@ Standalone wallet modal with custom filter and sorting support.
 
 ## 简体中文
 
-`snk-wallet-kit` 是一个面向 React 生态的钱包接入 SDK，统一了 **EVM** 和 **Solana** 两类钱包的连接流程，同时提供开箱即用的 UI 组件和可定制的 Hooks。
+`snk-wallet-kit` 是一个基于 wagmi 的极简版 React 钱包连接工具，统一了 **EVM** 和 **Solana** 两类钱包的连接流程，同时提供开箱即用的 UI 组件和可定制的 Hooks，支持 React 和 Next.js。
 
 ---
 
@@ -260,6 +264,10 @@ export default defineConfig({
 ### 样式说明
 
 当使用 `WalletProvider` 时，`snk-wallet-kit` 会自动注入已构建样式，无需再手动引入 `import "snk-wallet-kit/dist/style.css"`。
+
+### 配置行为
+
+当你显式配置了 `evm.wallets` 或 `sol.wallets` 任一数组时，另一侧 namespace 默认不会启用。这确保钱包选择弹框只会展示你显式配置的钱包按钮。
 
 ---
 
