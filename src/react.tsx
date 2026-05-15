@@ -2,11 +2,13 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  createContext,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  useContext,
   type PropsWithChildren,
   type ReactElement,
 } from "react";
@@ -14,9 +16,6 @@ import {
   StandardConnect,
   StandardDisconnect,
   StandardEvents,
-  type StandardConnectFeature,
-  type StandardDisconnectFeature,
-  type StandardEventsFeature,
   type WalletWithStandardFeatures,
 } from "@wallet-standard/features";
 import {
@@ -29,9 +28,9 @@ import {
   switchChain as wagmiSwitchChain,
   watchConnection,
 } from "@wagmi/core";
-import { WagmiProvider } from "wagmi";
+import { WagmiProvider, type Config } from "wagmi";
 
-import { createEvmAdapter } from "./adapters/evm";
+import { createEvmAdapter, createWagmiConfig } from "./adapters/evm";
 import { createSolAdapter, resolveWalletId, toSolWalletDescriptors } from "./adapters/sol";
 import {
   bytesToHex,
@@ -42,6 +41,7 @@ import {
   normalizeWalletError,
   toMessageBytes,
   type ConnectOptions,
+  type NormalizedWalletKitConfig,
   type SignMessageResult,
   type SignableMessage,
   type SwitchChainOptions,
@@ -59,36 +59,72 @@ import {
   type StorageAdapter,
 } from "./runtime";
 import { WalletContext, WalletModalContext } from "./hooks/use-wallet";
-import { SolanaSignAndSendTransaction, SolanaSignMessage, type SolanaSignAndSendTransactionFeature, type SolanaSignMessageFeature } from "@solana/wallet-standard-features";
+import { SolanaSignAndSendTransaction, SolanaSignMessage } from "@solana/wallet-standard-features";
 import { injectStyles } from "./ui/index";
 
 export * from "./hooks/index";
 export * from "./hooks/use-wallet";
+export { createWagmiConfig as createWalletKitEvmConfig } from "./adapters/evm";
 
-export type WalletProviderProps = PropsWithChildren<{
+type WalletProviderEnvironment = {
+  queryClient: QueryClient;
+  wagmiConfig: Config | null;
+};
+
+const WalletProviderEnvironmentContext = createContext<WalletProviderEnvironment | null>(null);
+
+export type WalletKitProviderProps = PropsWithChildren<{
   config?: WalletKitConfig;
   storage?: StorageAdapter;
 }>;
 
-export function WalletProvider({
+export type WalletProviderProps = WalletKitProviderProps;
+
+export type WalletCoreProviderProps = PropsWithChildren<{
+  config?: WalletKitConfig;
+  storage?: StorageAdapter;
+  queryClient: QueryClient;
+  wagmiConfig: Config | null;
+}>;
+
+type WalletProviderBaseProps = PropsWithChildren<{
+  normalizedConfig: NormalizedWalletKitConfig;
+  storage?: StorageAdapter;
+  queryClient: QueryClient;
+  wagmiConfig: Config | null;
+}>;
+
+function useWalletProviderEnvironment(): WalletProviderEnvironment {
+  const context = useContext(WalletProviderEnvironmentContext);
+  if (!context) {
+    throw new Error("Wallet provider environment requires WalletKitProvider or WalletCoreProvider.");
+  }
+  return context;
+}
+
+export function useWalletKitQueryClient(): QueryClient {
+  return useWalletProviderEnvironment().queryClient;
+}
+
+export function useWalletKitWagmiConfig(): Config | null {
+  return useWalletProviderEnvironment().wagmiConfig;
+}
+
+function WalletProviderBase({
   children,
-  config,
+  normalizedConfig,
   storage,
-}: WalletProviderProps): ReactElement {
-  // Inject styles on mount
+  queryClient,
+  wagmiConfig,
+}: WalletProviderBaseProps): ReactElement {
   useEffect(() => {
     injectStyles();
   }, []);
 
-  const normalizedConfig = useMemo(() => normalizeConfig(config), [config]);
-  const queryClient = useMemo(() => new QueryClient(), []);
-  const evmAdapter = useMemo(() => createEvmAdapter(normalizedConfig), [
-    normalizedConfig.evm.enabled,
-    JSON.stringify(normalizedConfig.evm.chains),
-    JSON.stringify(normalizedConfig.evm.wallets),
-    normalizedConfig.evm.walletConnectProjectId,
-    normalizedConfig.app.ssr,
-  ]);
+  const evmAdapter = useMemo(
+    () => createEvmAdapter(normalizedConfig, wagmiConfig),
+    [normalizedConfig, wagmiConfig],
+  );
   const solAdapter = useMemo(() => createSolAdapter(normalizedConfig), [normalizedConfig]);
   const resolvedStorage = useMemo(() => storage ?? createDefaultStorage(), [storage]);
   const [session, setSession] = useState<WalletSession>(DEFAULT_SESSION);
@@ -448,15 +484,67 @@ export function WalletProvider({
     open: modalOpen, setOpen: setModalOpen, openModal: () => setModalOpen(true), closeModal: () => setModalOpen(false),
   }), [modalOpen]);
 
-  const providers = (
-    <WalletModalContext.Provider value={modalContextValue}>
-      <WalletContext.Provider value={contextValue}>{children}</WalletContext.Provider>
-    </WalletModalContext.Provider>
+  return (
+    <WalletProviderEnvironmentContext.Provider value={{ queryClient, wagmiConfig }}>
+      <WalletModalContext.Provider value={modalContextValue}>
+        <WalletContext.Provider value={contextValue}>{children}</WalletContext.Provider>
+      </WalletModalContext.Provider>
+    </WalletProviderEnvironmentContext.Provider>
+  );
+}
+
+export function WalletCoreProvider({
+  children,
+  config,
+  storage,
+  queryClient,
+  wagmiConfig,
+}: WalletCoreProviderProps): ReactElement {
+  const normalizedConfig = useMemo(() => normalizeConfig(config), [config]);
+
+  return (
+    <WalletProviderBase
+      normalizedConfig={normalizedConfig}
+      storage={storage}
+      queryClient={queryClient}
+      wagmiConfig={wagmiConfig}
+    >
+      {children}
+    </WalletProviderBase>
+  );
+}
+
+export function WalletKitProvider({
+  children,
+  config,
+  storage,
+}: WalletKitProviderProps): ReactElement {
+  const normalizedConfig = useMemo(() => normalizeConfig(config), [config]);
+  const [queryClient] = useState(() => new QueryClient());
+  const wagmiConfig = useMemo(() => createWagmiConfig(normalizedConfig), [normalizedConfig]);
+
+  const provider = (
+    <WalletProviderBase
+      normalizedConfig={normalizedConfig}
+      storage={storage}
+      queryClient={queryClient}
+      wagmiConfig={wagmiConfig}
+    >
+      {children}
+    </WalletProviderBase>
   );
 
   return (
     <QueryClientProvider client={queryClient}>
-      {evmAdapter ? <WagmiProvider config={evmAdapter.config} reconnectOnMount={false}>{providers}</WagmiProvider> : providers}
+      {wagmiConfig ? (
+        <WagmiProvider config={wagmiConfig} reconnectOnMount={false}>
+          {provider}
+        </WagmiProvider>
+      ) : (
+        provider
+      )}
     </QueryClientProvider>
   );
 }
+
+export const WalletProvider = WalletKitProvider;
