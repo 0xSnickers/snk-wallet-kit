@@ -127,20 +127,27 @@ export const DEFAULT_SESSION: WalletSession = {
 };
 
 const DEFAULT_STORAGE_KEY = "snk-wallet-kit";
+const DEFAULT_EVM_WALLETS: EvmWalletId[] = ["injected"];
+const DEFAULT_SOL_WALLETS: SolWalletId[] = ["phantom", "solflare", "backpack", "jupiter"];
 
 export function normalizeConfig(config: WalletKitConfig = {}): NormalizedWalletKitConfig {
+  const hasExplicitWalletSelection =
+    Array.isArray(config.evm?.wallets) || Array.isArray(config.sol?.wallets);
+  const evmWallets = config.evm?.wallets ?? (hasExplicitWalletSelection ? [] : DEFAULT_EVM_WALLETS);
+  const solWallets = config.sol?.wallets ?? (hasExplicitWalletSelection ? [] : DEFAULT_SOL_WALLETS);
+
   return {
     evm: {
-      enabled: config.evm?.enabled ?? true,
+      enabled: config.evm?.enabled ?? evmWallets.length > 0,
       chains: config.evm?.chains ?? ["mainnet", "sepolia"],
-      wallets: config.evm?.wallets ?? ["injected"],
+      wallets: evmWallets,
       autoConnect: config.evm?.autoConnect ?? true,
       walletConnectProjectId: config.evm?.walletConnectProjectId,
       coinbaseAppName: config.evm?.coinbaseAppName,
     },
     sol: {
-      enabled: config.sol?.enabled ?? true,
-      wallets: config.sol?.wallets ?? ["phantom", "solflare", "backpack", "jupiter"],
+      enabled: config.sol?.enabled ?? solWallets.length > 0,
+      wallets: solWallets,
       cluster: config.sol?.cluster ?? "mainnet-beta",
       autoConnect: config.sol?.autoConnect ?? true,
     },
