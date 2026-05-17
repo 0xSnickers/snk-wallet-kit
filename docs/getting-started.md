@@ -17,6 +17,7 @@ npm install react react-dom
 ## 2. 初始化 Provider
 
 ```tsx
+import "snk-wallet-kit/style.css";
 import { WalletProvider } from "snk-wallet-kit";
 
 const config = {
@@ -47,7 +48,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 推荐直接使用内置 Connect 按钮：
 
 ```tsx
-import { ConnectWalletButton } from "snk-wallet-connect-plugin";
+import { ConnectWalletButton } from "snk-wallet-kit";
 
 export function WalletEntry() {
   return <ConnectWalletButton recommendedWalletIds={["injected", "phantom"]} />;
@@ -57,7 +58,7 @@ export function WalletEntry() {
 你也可以继续使用 hooks 自定义列表：
 
 ```tsx
-import { useAvailableWallets, useConnectWallet } from "snk-wallet-connect-plugin";
+import { useAvailableWallets, useConnectWallet } from "snk-wallet-kit";
 
 export function WalletList() {
   const wallets = useAvailableWallets();
@@ -189,8 +190,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 - 统一连接状态
 - 统一 `connect / disconnect / reconnect`
 - 统一 `signMessage / sendTransaction / switchChain`
-- 内置 `ConnectWalletButton` (基于 Tailwind CSS)
-- 内置 `WalletSelectModal` (基于 Tailwind CSS)
+- 内置 `ConnectWalletButton` (命名空间 CSS)
+- 内置 `WalletSelectModal` (命名空间 CSS + body portal)
 - SSR-safe 基础处理
 
 ## 8. 当前未覆盖内容

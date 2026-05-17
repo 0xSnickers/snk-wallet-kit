@@ -4,12 +4,16 @@ import {
   type WalletKitConfig,
 } from "snk-wallet-kit";
 
+const walletConnectProjectId = import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID;
+
 export const walletKitConfig: WalletKitConfig = {
   evm: {
     enabled: true,
     chains: ["mainnet", "sepolia"],
-    wallets: ["metaMask", "okxWallet", "walletConnect"],
-    walletConnectProjectId: "97aee081a604f415584c305fe5c3dd15",
+    wallets: walletConnectProjectId
+      ? ["metaMask", "okxWallet", "walletConnect"]
+      : ["metaMask", "okxWallet"],
+    walletConnectProjectId,
   },
   sol: {
     enabled: true,

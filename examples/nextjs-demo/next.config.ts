@@ -14,9 +14,6 @@ const nextConfig: NextConfig = {
     return config;
   },
   turbopack: {},
-  env: {
-    NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID: "971e64954476ef3b739194939768615e",
-  },
 };
 
 export default nextConfig;

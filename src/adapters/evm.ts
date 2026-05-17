@@ -1,10 +1,11 @@
 import type { Chain } from "viem";
 import { createConfig, http, type Config, type CreateConnectorFn } from "wagmi";
 import { mainnet, sepolia } from "wagmi/chains";
-import { coinbaseWallet, injected, walletConnect } from "wagmi/connectors";
+import { injected } from "@wagmi/core";
 
 import type { EvmWalletId, NormalizedWalletKitConfig, WalletDescriptor } from "../core";
 import { WALLET_ICONS } from "../ui/constants";
+import { walletConnectConnector } from "./wallet-connect";
 
 export type EvmAdapter = {
   config: Config;
@@ -30,6 +31,7 @@ type EthereumProvider = {
 
 type EvmWindowLike = {
   ethereum?: EthereumProvider;
+  coinbaseWalletExtension?: EthereumProvider;
   okxwallet?: EthereumProvider | { ethereum?: EthereumProvider };
 };
 
@@ -81,6 +83,35 @@ function findOkxProvider(windowArg?: unknown): EthereumProvider | undefined {
   return undefined;
 }
 
+function findCoinbaseProvider(windowArg?: unknown): EthereumProvider | undefined {
+  if (typeof window === "undefined") return undefined;
+  const targetWindow = (windowArg || window) as EvmWindowLike;
+
+  if (targetWindow.coinbaseWalletExtension) {
+    return targetWindow.coinbaseWalletExtension;
+  }
+
+  const ethereum = targetWindow.ethereum;
+  if (!ethereum) return undefined;
+
+  if (ethereum.isCoinbaseWallet) return ethereum;
+
+  if (ethereum.providers?.length) {
+    return ethereum.providers.find((provider) => provider.isCoinbaseWallet);
+  }
+
+  return undefined;
+}
+
+function getEnabledEvmWalletIds(config: NormalizedWalletKitConfig): EvmWalletId[] {
+  return config.evm.wallets.filter((walletId) => {
+    if (walletId === "walletConnect" && !config.evm.walletConnectProjectId) {
+      return false;
+    }
+    return true;
+  });
+}
+
 function resolveChains(config: NormalizedWalletKitConfig): [Chain, ...Chain[]] | null {
   if (!config.evm.enabled) {
     return null;
@@ -98,44 +129,49 @@ function resolveChains(config: NormalizedWalletKitConfig): [Chain, ...Chain[]] |
 }
 
 function createEvmConnectors(config: NormalizedWalletKitConfig): CreateConnectorFn[] {
-  return config.evm.wallets.flatMap((walletId) => {
+  const connectors: CreateConnectorFn[] = [];
+
+  for (const walletId of getEnabledEvmWalletIds(config)) {
     if (walletId === "injected") {
-      return [injected()];
+      connectors.push(injected() as CreateConnectorFn);
+      continue;
     }
 
     if (walletId === "metaMask") {
-      return [
+      connectors.push(
         injected({
           target: {
             id: "metaMask",
             name: "MetaMask",
             provider: (windowArg) => findMetaMaskProvider(windowArg) as any,
           },
-        }),
-      ];
+        }) as CreateConnectorFn,
+      );
+      continue;
     }
 
     if (walletId === "okxWallet") {
-      return [
+      connectors.push(
         injected({
           target: {
             id: "okxWallet",
             name: "OKX Wallet",
             provider: (windowArg) => findOkxProvider(windowArg) as any,
           },
-        }),
-      ];
+        }) as CreateConnectorFn,
+      );
+      continue;
     }
 
     if (walletId === "walletConnect") {
       const projectId = config.evm.walletConnectProjectId;
       if (!projectId) {
         console.warn("WalletConnect Project ID is missing. WalletConnect will be disabled.");
-        return [];
+        continue;
       }
 
-      return [
-        walletConnect({
+      connectors.push(
+        walletConnectConnector({
           projectId,
           showQrModal: true,
           qrModalOptions: {
@@ -147,20 +183,25 @@ function createEvmConnectors(config: NormalizedWalletKitConfig): CreateConnector
             url: typeof window !== "undefined" ? window.location.origin : "",
             icons: ["https://avatars.githubusercontent.com/u/1"]
           }
-        }),
-      ];
+        }) as CreateConnectorFn,
+      );
+      continue;
     }
 
     if (walletId === "coinbaseWallet") {
-      return [
-        coinbaseWallet({
-          appName: config.evm.coinbaseAppName ?? "SNK Wallet Kit",
-        }),
-      ];
+      connectors.push(
+        injected({
+          target: {
+            id: "coinbaseWallet",
+            name: config.evm.coinbaseAppName ?? "Coinbase Wallet",
+            provider: (windowArg) => findCoinbaseProvider(windowArg) as any,
+          },
+        }) as CreateConnectorFn,
+      );
     }
+  }
 
-    return [];
-  });
+  return connectors;
 }
 
 export function createWagmiConfig(config: NormalizedWalletKitConfig): Config | null {
@@ -193,7 +234,7 @@ export function createEvmAdapter(
   return {
     config: wagmiConfig,
     connectors,
-    wallets: config.evm.wallets.map(toEvmWalletDescriptor),
+    wallets: getEnabledEvmWalletIds(config).map(toEvmWalletDescriptor),
   };
 }
 
@@ -279,9 +320,9 @@ function toEvmWalletDescriptor(walletId: EvmWalletId): WalletDescriptor {
     namespace: "evm",
     walletId,
     name: "Coinbase Wallet",
-    installed: true,
+    installed: !!findCoinbaseProvider(),
     ready: true,
-    description: "Connect to Coinbase Wallet.",
+    description: "Connect to your Coinbase Wallet extension.",
     downloadUrl: "https://www.coinbase.com/wallet",
   };
 }

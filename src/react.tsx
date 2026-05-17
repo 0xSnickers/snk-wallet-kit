@@ -60,7 +60,6 @@ import {
 } from "./runtime";
 import { WalletContext, WalletModalContext } from "./hooks/use-wallet";
 import { SolanaSignAndSendTransaction, SolanaSignMessage } from "@solana/wallet-standard-features";
-import { injectStyles } from "./ui/index";
 
 export * from "./hooks/index";
 export * from "./hooks/use-wallet";
@@ -117,10 +116,6 @@ function WalletProviderBase({
   queryClient,
   wagmiConfig,
 }: WalletProviderBaseProps): ReactElement {
-  useEffect(() => {
-    injectStyles();
-  }, []);
-
   const evmAdapter = useMemo(
     () => createEvmAdapter(normalizedConfig, wagmiConfig),
     [normalizedConfig, wagmiConfig],

@@ -4,14 +4,16 @@ import {
   type WalletKitConfig,
 } from "snk-wallet-kit";
 
+const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID;
+
 export const walletKitConfig: WalletKitConfig = {
   evm: {
     enabled: true,
     chains: ["mainnet", "sepolia"],
-    wallets: ["metaMask", "okxWallet", "walletConnect"],
-    walletConnectProjectId:
-      process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID ||
-      "971e64954476ef3b739194939768615e",
+    wallets: walletConnectProjectId
+      ? ["metaMask", "okxWallet", "walletConnect"]
+      : ["metaMask", "okxWallet"],
+    walletConnectProjectId,
   },
   sol: {
     enabled: true,

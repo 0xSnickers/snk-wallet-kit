@@ -1,6 +1,6 @@
 {
   "name": "snk-wallet-kit",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "React wallet connection SDK for EVM and Solana.",
   "license": "MIT",
   "type": "module",
@@ -20,16 +20,19 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./style.css": "./dist/style.css"
   },
   "files": [
     "dist",
     "docs"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "scripts": {
     "build": "npm run build:css && tsup src/index.ts --format esm,cjs --dts",
-    "build:css": "npx tailwindcss --minify -i ./src/ui/styles.css -o ./dist/style.css && node scripts/bundle-css.js",
+    "build:css": "node scripts/bundle-css.js",
     "dev": "npm run build:css && tsup src/index.ts --format esm,cjs --dts --watch --onSuccess \"node scripts/bundle-css.js\"",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit"
@@ -55,14 +58,12 @@
     "@walletconnect/ethereum-provider": "^2.23.9",
     "@walletconnect/modal": "^2.7.0",
     "viem": "^2.48.11",
-    "wagmi": "^3.6.9"
+    "wagmi": "^3.6.9",
+    "clsx": "^2.1.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^3.5.0",
-    "tailwindcss": "^4.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.3"
   }

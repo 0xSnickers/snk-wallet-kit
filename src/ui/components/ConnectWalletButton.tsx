@@ -5,6 +5,13 @@ import { cn } from "../utils";
 import { useWallet, useWalletModal } from "../../react";
 import { WalletSelectModal } from "./WalletSelectModal";
 
+type RenderButtonArgs = {
+  connected: boolean;
+  address: string | null;
+  label: ReactNode;
+  open: () => void;
+};
+
 export type ConnectWalletButtonProps = {
   label?: string;
   modalTitle?: string;
@@ -12,6 +19,7 @@ export type ConnectWalletButtonProps = {
   showAccount?: boolean;
   renderModal?: boolean;
   className?: string;
+  renderButton?: (args: RenderButtonArgs) => ReactNode;
 };
 
 export function ConnectWalletButton({
@@ -21,6 +29,7 @@ export function ConnectWalletButton({
   showAccount = true,
   renderModal = true,
   className,
+  renderButton,
 }: ConnectWalletButtonProps): ReactElement {
   const { session } = useWallet();
   const modal = useWalletModal();
@@ -32,26 +41,35 @@ export function ConnectWalletButton({
     return label;
   }, [label, session.account, session.connected, showAccount]);
 
+  const button = renderButton ? (
+    renderButton({
+      connected: session.connected,
+      address: session.account ?? null,
+      label: buttonLabel,
+      open: modal.openModal,
+    })
+  ) : (
+    <button
+      type="button"
+      onClick={modal.openModal}
+      className={cn(
+        "snk-wallet-kit__connectButton",
+        session.connected && "snk-wallet-kit__connectButton--connected",
+        className,
+      )}
+    >
+      <span className="snk-wallet-kit__connectButtonContent">
+        {session.connected && (
+          <span className="snk-wallet-kit__statusDot" aria-hidden="true" />
+        )}
+        {buttonLabel}
+      </span>
+    </button>
+  );
+
   return (
     <>
-      <button
-        type="button"
-        onClick={modal.openModal}
-        className={cn(
-          "px-6 py-2.5 rounded-xl font-semibold transition-all duration-200 active:scale-95 shadow-lg",
-          session.connected
-            ? "bg-slate-800 text-white hover:bg-slate-700 border border-slate-700"
-            : "bg-blue-600 text-white hover:bg-blue-500 hover:shadow-blue-500/20",
-          className
-        )}
-      >
-        <div className="flex items-center gap-2">
-          {session.connected && (
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          )}
-          {buttonLabel}
-        </div>
-      </button>
+      {button}
 
       {renderModal && (
         <WalletSelectModal

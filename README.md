@@ -11,7 +11,7 @@
 ## Features
 
 - Unified wallet access for EVM and Solana.
-- Automatic style injection with no manual CSS import.
+- Namespaced default CSS with no global reset or Tailwind utility leakage.
 - Built-in wallet icons for MetaMask, OKX Wallet, and WalletConnect.
 - Precise wallet routing for multi-wallet browser environments.
 - Core wallet actions including connect, disconnect, auto reconnect, sign message, send transaction, and switch chain for EVM.
@@ -31,6 +31,7 @@ npm install snk-wallet-kit
 ### 1. Configure `WalletProvider`
 
 ```tsx
+import "snk-wallet-kit/style.css";
 import { WalletProvider } from "snk-wallet-kit";
 
 const config = {
@@ -109,7 +110,13 @@ export default defineConfig({
 
 ### Styling
 
-`snk-wallet-kit` injects its built CSS automatically when `WalletProvider` is used. No `import "snk-wallet-kit/dist/style.css"` step is required.
+Import the default stylesheet once in your app entry:
+
+```tsx
+import "snk-wallet-kit/style.css";
+```
+
+The stylesheet only uses `.snk-wallet-kit__*` selectors and does not include Tailwind preflight, resets, or utility classes. If you only use the hooks and build your own UI, you can skip this import.
 
 ### Advanced Provider Composition
 
@@ -170,10 +177,12 @@ Opens the wallet selection modal.
 - `label`: Text shown before connection. Default is `"Connect Wallet"`.
 - `recommendedWalletIds`: Preferred wallet ids for ordering and highlighting.
 - `showAccount`: Shows a shortened account after connection. Default is `true`.
+- `renderButton`: Optional custom button renderer. Receives `{ connected, address, label, open }`.
+- `renderModal`: Renders the default `WalletSelectModal`. Default is `true`.
 
 #### `WalletSelectModal`
 
-Standalone wallet modal with custom filter and sorting support.
+Standalone wallet modal with custom filter and sorting support. It renders into `document.body` through a portal, so it is not affected by transformed or clipped parent containers.
 
 ### Hooks
 
@@ -207,7 +216,7 @@ Standalone wallet modal with custom filter and sorting support.
 ## 功能特性
 
 - 同时支持 EVM 和 Solana 钱包接入。
-- 自动注入样式，无需手动引入 CSS。
+- 默认样式使用专属命名空间，不注入全局 reset 或 Tailwind 通用 class。
 - 内置 MetaMask、OKX Wallet、WalletConnect 品牌图标。
 - 在多钱包浏览器环境中精确路由到目标钱包。
 - 提供连接、断开、自动重连、消息签名、发送交易、EVM 切链等能力。
@@ -227,6 +236,7 @@ npm install snk-wallet-kit
 ### 1. 配置 `WalletProvider`
 
 ```tsx
+import "snk-wallet-kit/style.css";
 import { WalletProvider } from "snk-wallet-kit";
 
 const config = {
@@ -305,7 +315,13 @@ export default defineConfig({
 
 ### 样式说明
 
-当使用 `WalletProvider` 时，`snk-wallet-kit` 会自动注入已构建样式，无需再手动引入 `import "snk-wallet-kit/dist/style.css"`。
+在应用入口显式导入默认样式：
+
+```tsx
+import "snk-wallet-kit/style.css";
+```
+
+样式只使用 `.snk-wallet-kit__*` 选择器，不包含 Tailwind preflight、reset 或通用 utility class。如果你只使用 hooks 并完全自定义 UI，可以不导入这份 CSS。
 
 ### 高级 Provider 组合
 
@@ -366,10 +382,12 @@ export function Root() {
 - `label`: 未连接时显示的文案，默认是 `"Connect Wallet"`。
 - `recommendedWalletIds`: 用于排序和高亮的钱包 id 列表。
 - `showAccount`: 连接后显示缩略账户地址，默认 `true`。
+- `renderButton`: 可选的自定义按钮渲染函数，参数为 `{ connected, address, label, open }`。
+- `renderModal`: 是否渲染默认 `WalletSelectModal`，默认 `true`。
 
 #### `WalletSelectModal`
 
-独立钱包弹框，支持自定义过滤和排序。
+独立钱包弹框，支持自定义过滤和排序。组件会通过 portal 渲染到 `document.body`，不会被按钮所在父容器的 transform、overflow 或层级影响。
 
 ### Hooks
 

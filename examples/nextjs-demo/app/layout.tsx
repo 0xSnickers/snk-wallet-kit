@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import "snk-wallet-kit/style.css";
 import "./globals.css";
 import { ProviderWrapper } from "../components/ProviderWrapper";
 
