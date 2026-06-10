@@ -12,8 +12,17 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "28px",
   },
   text: {
-    margin: "0 0 24px",
+    margin: "0 0 16px",
     color: "#94a3b8",
+    lineHeight: 1.6,
+  },
+  note: {
+    margin: "0 0 24px",
+    padding: "12px 14px",
+    borderRadius: "12px",
+    background: "#0f172a",
+    border: "1px solid #334155",
+    color: "#cbd5e1",
     lineHeight: 1.6,
   },
 };
@@ -21,19 +30,17 @@ const styles: Record<string, CSSProperties> = {
 export function Header() {
   return (
     <div style={styles.header}>
-      <h1 style={styles.title}>SNK Wallet Connect - Next.js Demo</h1>
+      <h1 style={styles.title}>SNK Wallet Kit Host-Owned wagmi Demo</h1>
       <p style={styles.text}>
-        This is a Next.js App Router demo using{" "}
-        <strong style={{ color: "#38bdf8" }}>
-          WalletCoreProvider + Custom Providers
-        </strong>{" "}
-        (高级用法). <br />
-        <strong style={{ color: "#22c55e" }}>
-          ✨ wagmi hooks (useAccount, useChainId) work perfectly here!
-        </strong>
+        This App Router demo keeps <strong style={{ color: "#38bdf8" }}>one host-owned WagmiProvider</strong> and
+        mounts <strong style={{ color: "#22c55e" }}>WalletCoreProvider</strong> on top of it.
+      </p>
+      <p style={styles.note}>
+        EVM connection state comes from wagmi reconnect behavior, while Solana session restore stays inside the kit via
+        <code> sol.autoReconnect</code>.
       </p>
       <div style={{ marginBottom: "20px" }}>
-        <ConnectWalletButton recommendedWalletIds={["injected", "phantom"]} />
+        <ConnectWalletButton recommendedWalletIds={["metaMask", "phantom"]} />
       </div>
     </div>
   );

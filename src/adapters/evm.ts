@@ -41,66 +41,58 @@ function getEthereumProvider(windowArg?: unknown): EthereumProvider | undefined 
   return targetWindow.ethereum;
 }
 
+function getInjectedProviders(windowArg?: unknown): EthereumProvider[] {
+  const ethereum = getEthereumProvider(windowArg);
+  if (!ethereum) return [];
+  return ethereum.providers?.length ? ethereum.providers : [ethereum];
+}
+
+function isPhantomEvmProvider(provider?: EthereumProvider): boolean {
+  return Boolean(provider?.isPhantom);
+}
+
 function findMetaMaskProvider(windowArg?: unknown): EthereumProvider | undefined {
+  const providers = getInjectedProviders(windowArg).filter((provider) => !isPhantomEvmProvider(provider));
   const ethereum = getEthereumProvider(windowArg);
   if (!ethereum) return undefined;
 
-  // 1. Check if the root provider is ONLY MetaMask
-  if (ethereum.isMetaMask && !ethereum.isOKXWallet && !ethereum.isOkxWallet && !ethereum.isCoinbaseWallet) {
+  if (ethereum.isMetaMask && !ethereum.isOKXWallet && !ethereum.isOkxWallet && !ethereum.isCoinbaseWallet && !ethereum.isPhantom) {
     return ethereum;
   }
 
-  // 2. Search in providers array
-  if (ethereum.providers?.length) {
-    return ethereum.providers.find(
-      (p) => p.isMetaMask && !p.isOKXWallet && !p.isOkxWallet && !p.isCoinbaseWallet
-    ) || ethereum.providers.find(p => p.isMetaMask);
-  }
-
-  return ethereum.isMetaMask ? ethereum : undefined;
+  return providers.find(
+    (provider) => provider.isMetaMask && !provider.isOKXWallet && !provider.isOkxWallet && !provider.isCoinbaseWallet,
+  ) || providers.find((provider) => provider.isMetaMask);
 }
 
 function findOkxProvider(windowArg?: unknown): EthereumProvider | undefined {
   if (typeof window === "undefined") return undefined;
   const targetWindow = (windowArg || window) as EvmWindowLike;
-  
-  // 1. Check window.okxwallet (highest priority for OKX)
+
   if (targetWindow.okxwallet) {
     const okx = targetWindow.okxwallet as any;
-    return okx.ethereum || okx;
+    const provider = okx.ethereum || okx;
+    if (!isPhantomEvmProvider(provider)) {
+      return provider;
+    }
   }
 
-  // 2. Check window.ethereum
-  const ethereum = targetWindow.ethereum;
-  if (!ethereum) return undefined;
-
-  if (ethereum.isOKXWallet || ethereum.isOkxWallet) return ethereum;
-
-  if (ethereum.providers?.length) {
-    return ethereum.providers.find(p => p.isOKXWallet || p.isOkxWallet);
-  }
-
-  return undefined;
+  return getInjectedProviders(windowArg).find(
+    (provider) => !isPhantomEvmProvider(provider) && (provider.isOKXWallet || provider.isOkxWallet),
+  );
 }
 
 function findCoinbaseProvider(windowArg?: unknown): EthereumProvider | undefined {
   if (typeof window === "undefined") return undefined;
   const targetWindow = (windowArg || window) as EvmWindowLike;
 
-  if (targetWindow.coinbaseWalletExtension) {
+  if (targetWindow.coinbaseWalletExtension && !isPhantomEvmProvider(targetWindow.coinbaseWalletExtension)) {
     return targetWindow.coinbaseWalletExtension;
   }
 
-  const ethereum = targetWindow.ethereum;
-  if (!ethereum) return undefined;
-
-  if (ethereum.isCoinbaseWallet) return ethereum;
-
-  if (ethereum.providers?.length) {
-    return ethereum.providers.find((provider) => provider.isCoinbaseWallet);
-  }
-
-  return undefined;
+  return getInjectedProviders(windowArg).find(
+    (provider) => !isPhantomEvmProvider(provider) && provider.isCoinbaseWallet,
+  );
 }
 
 function getEnabledEvmWalletIds(config: NormalizedWalletKitConfig): EvmWalletId[] {
@@ -181,8 +173,8 @@ function createEvmConnectors(config: NormalizedWalletKitConfig): CreateConnector
             name: "SNK Wallet Kit",
             description: "React wallet connection SDK for EVM and Solana.",
             url: typeof window !== "undefined" ? window.location.origin : "",
-            icons: ["https://avatars.githubusercontent.com/u/1"]
-          }
+            icons: ["https://avatars.githubusercontent.com/u/1"],
+          },
         }) as CreateConnectorFn,
       );
       continue;
@@ -281,17 +273,16 @@ function toEvmWalletDescriptor(walletId: EvmWalletId): WalletDescriptor {
     let name = "Browser Wallet";
     let icon: string | undefined = undefined;
     let description = "Connect to your browser's injected wallet.";
-    const eth = getEthereumProvider();
+    const providers = getInjectedProviders().filter((provider) => !isPhantomEvmProvider(provider));
+    const eth = providers[0];
 
     if (eth) {
       if (eth.isMetaMask) {
         name = "MetaMask";
         icon = WALLET_ICONS.Metamask;
-      } else if (eth.isOKXWallet) {
+      } else if (eth.isOKXWallet || eth.isOkxWallet) {
         name = "OKX Wallet";
         icon = WALLET_ICONS.Okx;
-      } else if (eth.isPhantom) {
-        name = "Phantom";
       } else if (eth.isCoinbaseWallet) {
         name = "Coinbase Wallet";
       } else if (eth.isTrust) {
@@ -310,7 +301,7 @@ function toEvmWalletDescriptor(walletId: EvmWalletId): WalletDescriptor {
       walletId,
       name,
       icon,
-      installed: !!eth,
+      installed: providers.length > 0,
       ready: true,
       description,
     };

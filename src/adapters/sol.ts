@@ -1,5 +1,6 @@
 import { getWallets } from "@wallet-standard/app";
 import type { Wallet } from "@wallet-standard/base";
+import { SolanaSignAndSendTransaction, SolanaSignMessage } from "@solana/wallet-standard-features";
 
 import type { NormalizedWalletKitConfig, WalletDescriptor } from "../core";
 import { isBrowser } from "../runtime";
@@ -9,6 +10,27 @@ export type SolAdapter = {
   supportedWalletIds: string[];
   on: (event: "change", listener: () => void) => () => void;
 };
+
+function supportsSolana(wallet: Wallet): boolean {
+  const chains = wallet.chains ?? [];
+  const accounts = wallet.accounts ?? [];
+  const features = wallet.features ?? {};
+
+  if (chains.some((chain) => chain.startsWith("solana:"))) {
+    return true;
+  }
+
+  if (SolanaSignMessage in features || SolanaSignAndSendTransaction in features) {
+    return true;
+  }
+
+  return accounts.some(
+    (account) =>
+      account.chains?.some((chain) => chain.startsWith("solana:")) ||
+      account.features?.includes(SolanaSignMessage) ||
+      account.features?.includes(SolanaSignAndSendTransaction),
+  );
+}
 
 export function resolveWalletId(wallet: Wallet): string {
   const normalizedName = wallet.name.toLowerCase().trim();
@@ -52,6 +74,7 @@ export function createSolAdapter(config: NormalizedWalletKitConfig): SolAdapter 
     get wallets() {
       return registry
         .get()
+        .filter((wallet) => supportsSolana(wallet))
         .filter((wallet) => config.sol.wallets.includes(resolveWalletId(wallet) as never));
     },
     supportedWalletIds: [...config.sol.wallets],

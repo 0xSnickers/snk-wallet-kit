@@ -30,7 +30,9 @@
 .snk-wallet-kit__connectButton:focus-visible,
 .snk-wallet-kit__iconButton:focus-visible,
 .snk-wallet-kit__walletOption:focus-visible,
-.snk-wallet-kit__disconnectButton:focus-visible {
+.snk-wallet-kit__disconnectButton:focus-visible,
+.snk-wallet-kit__recoveryButton:focus-visible,
+.snk-wallet-kit__recoveryButtonSecondary:focus-visible {
   outline: 2px solid #60a5fa;
   outline-offset: 2px;
 }
@@ -76,8 +78,9 @@
 
 .snk-wallet-kit__modalPanel {
   box-sizing: border-box;
-  width: 100%;
+  width: min(100%, 448px);
   max-width: 448px;
+  min-width: 0;
   overflow: hidden;
   border: 1px solid #1e293b;
   border-radius: 16px;
@@ -147,12 +150,15 @@
 .snk-wallet-kit__modalBody {
   display: grid;
   gap: 24px;
+  min-width: 0;
   max-height: 60vh;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px;
 }
 
 .snk-wallet-kit__sessionCard {
+  min-width: 0;
   padding: 16px;
   border: 1px solid #334155;
   border-radius: 12px;
@@ -161,7 +167,7 @@
 
 .snk-wallet-kit__sessionRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -185,20 +191,15 @@
   flex: 1 1 auto;
 }
 
-.snk-wallet-kit__sessionAccount,
-.snk-wallet-kit__sessionNamespace,
-.snk-wallet-kit__walletDescription {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .snk-wallet-kit__sessionAccount {
   margin: 0;
   color: #ffffff;
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .snk-wallet-kit__sessionNamespace {
@@ -255,6 +256,7 @@
   align-items: center;
   gap: 16px;
   width: 100%;
+  min-width: 0;
   min-height: 66px;
   padding: 12px;
   border: 1px solid #1e293b;
@@ -313,7 +315,7 @@
 
 .snk-wallet-kit__walletNameRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
 }
@@ -346,6 +348,9 @@
   color: #64748b;
   font-size: 12px;
   line-height: 16px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .snk-wallet-kit__spinner {
@@ -370,6 +375,72 @@
   line-height: 20px;
 }
 
+.snk-wallet-kit__recoveryCard {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid rgb(96 165 250 / 0.18);
+  background: rgb(37 99 235 / 0.08);
+}
+
+.snk-wallet-kit__recoveryTitle {
+  margin: 0;
+  color: #dbeafe;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.snk-wallet-kit__recoveryText {
+  margin: 0;
+  color: #bfdbfe;
+  font-size: 13px;
+  line-height: 20px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.snk-wallet-kit__recoveryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.snk-wallet-kit__recoveryButton,
+.snk-wallet-kit__recoveryButtonSecondary {
+  appearance: none;
+  min-height: 38px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.snk-wallet-kit__recoveryButton {
+  border: 1px solid transparent;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.snk-wallet-kit__recoveryButton:hover {
+  background: #3b82f6;
+}
+
+.snk-wallet-kit__recoveryButtonSecondary {
+  border: 1px solid #475569;
+  background: transparent;
+  color: #e2e8f0;
+}
+
+.snk-wallet-kit__recoveryButtonSecondary:hover {
+  background: #1e293b;
+}
+
 .snk-wallet-kit__errorBar {
   padding: 16px;
   border-top: 1px solid rgb(239 68 68 / 0.2);
@@ -381,7 +452,10 @@
   color: #ef4444;
   font-size: 12px;
   line-height: 16px;
-  text-align: center;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 @keyframes snk-wallet-kit-pulse {

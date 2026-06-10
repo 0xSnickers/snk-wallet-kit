@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# nextjs-demo
 
-## Getting Started
+This demo shows the recommended **host-owned wagmi** integration for `snk-wallet-kit`.
 
-First, run the development server:
+## What it demonstrates
+
+- Your app owns the single `QueryClientProvider` and `WagmiProvider`
+- `WalletCoreProvider` bridges `snk-wallet-kit` UI/hooks into that existing host tree
+- EVM reconnect is controlled by wagmi via `reconnectOnMount`
+- Solana silent restore is controlled by the kit via `sol.autoReconnect`
+- Demo UI compares kit session state with wagmi connection state side by side
+
+## Run locally
+
+From this directory:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## WalletConnect
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set a WalletConnect project id if you want the WalletConnect option to appear:
 
-## Learn More
+```bash
+NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_project_id
+```
 
-To learn more about Next.js, take a look at the following resources:
+Without that variable, the demo still runs and only shows the configured injected wallets.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Key files
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `config/wallet.config.ts` — shared wallet config for the demo
+- `components/ProviderWrapper.tsx` — host-owned `QueryClientProvider` + `WagmiProvider` + `WalletCoreProvider`
+- `components/StatusDisplay.tsx` — compares kit state with wagmi state
+- `components/WalletActions.tsx` — exercises reconnect, disconnect, sign, send transaction, and EVM chain switching

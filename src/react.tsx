@@ -22,7 +22,6 @@ import {
   connect as wagmiConnect,
   disconnect as wagmiDisconnect,
   getConnection as getWagmiConnection,
-  reconnect as wagmiReconnect,
   sendTransaction as wagmiSendTransaction,
   signMessage as wagmiSignMessage,
   switchChain as wagmiSwitchChain,
@@ -33,6 +32,7 @@ import { WagmiProvider, type Config } from "wagmi";
 import { createEvmAdapter, createWagmiConfig } from "./adapters/evm";
 import { createSolAdapter, resolveWalletId, toSolWalletDescriptors } from "./adapters/sol";
 import {
+  bytesToBase58,
   bytesToHex,
   DEFAULT_SESSION,
   WalletErrorCode,
@@ -62,7 +62,6 @@ import { WalletContext, WalletModalContext } from "./hooks/use-wallet";
 import { SolanaSignAndSendTransaction, SolanaSignMessage } from "@solana/wallet-standard-features";
 
 export * from "./hooks/index";
-export * from "./hooks/use-wallet";
 export { createWagmiConfig as createWalletKitEvmConfig } from "./adapters/evm";
 
 type WalletProviderEnvironment = {
@@ -130,6 +129,9 @@ function WalletProviderBase({
   const solEventsCleanupRef = useRef<(() => void) | null>(null);
   const autoReconnectAttemptedRef = useRef(false);
   const connectInFlightRef = useRef(false);
+  const solConnectPromiseRef = useRef<Promise<void> | null>(null);
+  const solConnectedWalletRef = useRef<WalletWithStandardFeatures | null>(null);
+  const solConnectedAccountRef = useRef<any>(null);
 
   const inferEvmWalletIdFromConnector = useCallback((connector: { id?: string; name?: string }): string => {
     const id = connector.id?.toLowerCase() ?? "";
@@ -211,8 +213,16 @@ function WalletProviderBase({
     const persisted = readPersistedSession(resolvedStorage, normalizedConfig.app.storageKey);
     if (!persisted) {
       setSession({ ...DEFAULT_SESSION, status: "disconnected" });
+    } else if (persisted.namespace === "sol") {
+      setSession({
+        ...DEFAULT_SESSION,
+        namespace: persisted.namespace,
+        walletId: persisted.walletId,
+        status: "disconnected",
+      });
     } else {
-      setSession({ ...DEFAULT_SESSION, namespace: persisted.namespace, walletId: persisted.walletId, status: "disconnected" });
+      clearPersistedSession(resolvedStorage, normalizedConfig.app.storageKey);
+      setSession({ ...DEFAULT_SESSION, status: "disconnected" });
     }
     setHydrated(true);
   }, [normalizedConfig.app.storageKey, resolvedStorage]);
@@ -246,70 +256,145 @@ function WalletProviderBase({
     if (!eventsFeature) return;
     solEventsCleanupRef.current = eventsFeature.on("change", ({ accounts }: any) => {
       if (!accounts || accounts.length === 0) {
+        solConnectedWalletRef.current = null;
+        solConnectedAccountRef.current = null;
         setSession({ ...DEFAULT_SESSION, status: "disconnected", namespace: "sol" });
         return;
       }
-      const primaryAccount = accounts[0];
+      const primaryAccount = resolveSolAccount(wallet, accounts);
+      if (!primaryAccount) {
+        solConnectedWalletRef.current = null;
+        solConnectedAccountRef.current = null;
+        setSession({ ...DEFAULT_SESSION, status: "disconnected", namespace: "sol" });
+        return;
+      }
+      const publicKey = getSolAccountAddress(primaryAccount);
+      if (!publicKey) {
+        solConnectedWalletRef.current = null;
+        solConnectedAccountRef.current = null;
+        setSession({ ...DEFAULT_SESSION, status: "disconnected", namespace: "sol" });
+        return;
+      }
+      solConnectedWalletRef.current = wallet;
+      solConnectedAccountRef.current = primaryAccount;
       setError(null);
       setSession({
         namespace: "sol",
         walletId: resolveWalletId(wallet),
-        account: primaryAccount.address,
+        account: publicKey,
         status: "connected",
         connected: true,
-        sol: { cluster: normalizedConfig.sol.cluster, publicKey: primaryAccount.address },
+        sol: { cluster: normalizedConfig.sol.cluster, publicKey },
       });
     });
   }, [normalizedConfig.sol.cluster]);
 
+
+  const resolveSolWallet = useCallback((walletId: string): WalletWithStandardFeatures | undefined => {
+    const candidates = solAdapter?.wallets.filter((wallet) => resolveWalletId(wallet) === walletId) ?? [];
+    if (candidates.length === 0) return undefined;
+
+    const ranked = [...candidates].reverse();
+    const targetName = walletId.toLowerCase();
+
+    return ranked.find((wallet) => {
+      const name = wallet.name.toLowerCase();
+      const id = (wallet as any).id?.toLowerCase() ?? "";
+      return id === targetName || name === targetName || name === `${targetName} wallet`;
+    }) as WalletWithStandardFeatures | undefined ?? ranked[0] as WalletWithStandardFeatures;
+  }, [solAdapter]);
+
+  const getSolAccountAddress = useCallback((account: any): string | null => {
+    if (account?.publicKey instanceof Uint8Array && account.publicKey.length > 0) {
+      return bytesToBase58(account.publicKey);
+    }
+
+    if (typeof account?.address === "string" && account.address.length > 0 && !account.address.startsWith("0x")) {
+      return account.address;
+    }
+
+    return null;
+  }, []);
+
+  const resolveSolAccount = useCallback((wallet: WalletWithStandardFeatures, accounts?: readonly any[]) => {
+    const candidates = (accounts && accounts.length > 0 ? accounts : wallet.accounts) as readonly any[];
+    const targetChain = `solana:${normalizedConfig.sol.cluster}`;
+
+    return candidates.find((account) => account?.chains?.includes(targetChain))
+      ?? candidates.find((account) => account?.chains?.some((chain: string) => chain.startsWith("solana:")))
+      ?? candidates.find((account) => account?.features?.includes(SolanaSignMessage))
+      ?? candidates.find((account) => account?.features?.includes(SolanaSignAndSendTransaction))
+      ?? candidates[0]
+      ?? null;
+  }, [normalizedConfig.sol.cluster]);
+
   const connectSolWallet = useCallback(async (walletId: string, silent = false): Promise<void> => {
     if (!solAdapter) throw new WalletKitError(WalletErrorCode.ProviderNotReady, "Solana adapter is not available.");
-    
-    const candidates = solAdapter.wallets.filter((w) => resolveWalletId(w) === walletId);
-    
-    let wallet: WalletWithStandardFeatures | undefined;
-    if (candidates.length === 1) {
-      wallet = candidates[0] as WalletWithStandardFeatures;
-    } else if (candidates.length > 1) {
-      const targetName = walletId.toLowerCase();
-      wallet = candidates.find(w => 
-        w.name.toLowerCase() === targetName || 
-        w.name.toLowerCase() === `${targetName} wallet` ||
-        (w as any).id?.toLowerCase() === targetName
-      ) as WalletWithStandardFeatures;
-      
-      if (!wallet) {
-        wallet = candidates[0] as WalletWithStandardFeatures;
+    if (solConnectPromiseRef.current) return solConnectPromiseRef.current;
+
+    const run = (async () => {
+      const wallet = resolveSolWallet(walletId);
+
+      if (!wallet) throw new WalletKitError(WalletErrorCode.WalletNotFound, "Solana wallet was not found.");
+      const connectFeature = (wallet.features as any)[StandardConnect];
+      if (!connectFeature) throw new WalletKitError(WalletErrorCode.UnsupportedFeature, "Wallet does not support standard:connect.");
+
+      setError(null);
+      setSession((current) => ({ ...current, namespace: "sol", walletId, status: "connecting" }));
+      try {
+        const result = await connectFeature.connect(silent ? { silent: true } : undefined);
+        const primaryAccount = resolveSolAccount(wallet, result.accounts.length > 0 ? result.accounts : wallet.accounts);
+        if (!primaryAccount) throw new WalletKitError(WalletErrorCode.ConnectFailed, "No authorized Solana account returned.");
+        const publicKey = getSolAccountAddress(primaryAccount);
+        if (!publicKey) throw new WalletKitError(WalletErrorCode.ConnectFailed, "No authorized Solana account returned.");
+        solConnectedWalletRef.current = wallet;
+        solConnectedAccountRef.current = primaryAccount;
+        subscribeToSolWallet(wallet);
+        setSession({
+          namespace: "sol",
+          walletId,
+          account: publicKey,
+          status: "connected",
+          connected: true,
+          sol: { cluster: normalizedConfig.sol.cluster, publicKey },
+        });
+        writePersistedSession(resolvedStorage, normalizedConfig.app.storageKey, { namespace: "sol", walletId, version: 1 });
+      } catch (caughtError) {
+        const rawMessage = caughtError instanceof Error ? caughtError.message : "";
+        const normalizedMessage = rawMessage.toLowerCase();
+        const isRejected = normalizedMessage.includes("user rejected") || normalizedMessage.includes("user denied") || normalizedMessage.includes("rejected the request");
+        const isPhantomPortError = walletId === "phantom" && (
+          normalizedMessage === "unexpected error" ||
+          normalizedMessage.includes("disconnected port object") ||
+          normalizedMessage.includes("failed to send message to service worker")
+        );
+        const err = isPhantomPortError
+          ? new WalletKitError(
+              WalletErrorCode.ConnectFailed,
+              "Phantom extension connection was interrupted. Please unlock Phantom, reopen the extension popup, and try connecting again.",
+              { namespace: "sol", walletId, cause: caughtError },
+            )
+          : normalizeWalletError(
+              caughtError,
+              isRejected ? WalletErrorCode.ConnectRejected : WalletErrorCode.ConnectFailed,
+              "Failed to connect Solana wallet.",
+              { namespace: "sol", walletId },
+            );
+        setError(err);
+        setSession((current) => ({ ...DEFAULT_SESSION, namespace: current.namespace === "sol" ? "sol" : null, walletId: current.namespace === "sol" ? walletId : null, status: "disconnected" }));
+        throw err;
       }
-    }
+    })();
 
-    if (!wallet) throw new WalletKitError(WalletErrorCode.WalletNotFound, "Solana wallet was not found.");
-    const connectFeature = (wallet.features as any)[StandardConnect];
-    if (!connectFeature) throw new WalletKitError(WalletErrorCode.UnsupportedFeature, "Wallet does not support standard:connect.");
-
-    setError(null);
-    setSession((current) => ({ ...current, namespace: "sol", walletId, status: "connecting" }));
+    solConnectPromiseRef.current = run;
     try {
-      const result = await connectFeature.connect(silent ? { silent: true } : undefined);
-      const primaryAccount = result.accounts[0] ?? wallet.accounts[0];
-      if (!primaryAccount) throw new WalletKitError(WalletErrorCode.ConnectFailed, "No authorized account returned.");
-      subscribeToSolWallet(wallet);
-      setSession({
-        namespace: "sol",
-        walletId,
-        account: primaryAccount.address,
-        status: "connected",
-        connected: true,
-        sol: { cluster: normalizedConfig.sol.cluster, publicKey: primaryAccount.address },
-      });
-      writePersistedSession(resolvedStorage, normalizedConfig.app.storageKey, { namespace: "sol", walletId, version: 1 });
-    } catch (caughtError) {
-      const err = normalizeWalletError(caughtError, WalletErrorCode.ConnectFailed, "Failed to connect Solana wallet.");
-      setError(err);
-      setSession((current) => ({ ...current, status: "error" }));
-      throw err;
+      await run;
+    } finally {
+      solConnectPromiseRef.current = null;
     }
-  }, [normalizedConfig.app.storageKey, normalizedConfig.sol.cluster, resolvedStorage, solAdapter, subscribeToSolWallet]);
+  }, [normalizedConfig.app.storageKey, normalizedConfig.sol.cluster, resolveSolWallet, resolvedStorage, solAdapter, subscribeToSolWallet]);
+
+
 
   const connectWallet = useCallback(async (options: ConnectOptions): Promise<void> => {
     if (connectInFlightRef.current) return;
@@ -343,9 +428,7 @@ function WalletProviderBase({
         connected: true,
         evm: { chainId: result.chainId },
       });
-      writePersistedSession(resolvedStorage, normalizedConfig.app.storageKey, { namespace: "evm", walletId: options.walletId, version: 1 });
     } catch (caughtError) {
-      console.error("Wallet connection failed:", caughtError);
       const message = caughtError instanceof Error ? caughtError.message.toLowerCase() : "";
       const isRejected = message.includes("user rejected") || message.includes("user denied") || (typeof caughtError === "object" && caughtError !== null && "code" in caughtError && ((caughtError as any).code === 4001 || (caughtError as any).code === "ACTION_REJECTED"));
       const err = normalizeWalletError(caughtError, isRejected ? WalletErrorCode.ConnectRejected : WalletErrorCode.ConnectFailed, "Connection failed.");
@@ -353,57 +436,36 @@ function WalletProviderBase({
       setSession({ ...DEFAULT_SESSION, status: "disconnected" });
       throw err;
     } finally { connectInFlightRef.current = false; }
-  }, [connectSolWallet, evmAdapter, normalizedConfig.app.storageKey, resolveEvmConnector, resolvedStorage, session.connected, session.namespace, session.walletId]);
+  }, [connectSolWallet, evmAdapter, resolveEvmConnector, session.connected, session.namespace, session.walletId]);
 
   const disconnectWallet = useCallback(async (): Promise<void> => {
     try {
       if (session.namespace === "sol") {
-        const wallet = solAdapter?.wallets.find((w) => resolveWalletId(w) === session.walletId) as any;
+        const wallet = solConnectedWalletRef.current ?? (session.walletId ? resolveSolWallet(session.walletId) as any : null);
         await wallet?.features?.[StandardDisconnect]?.disconnect();
         solEventsCleanupRef.current?.();
         solEventsCleanupRef.current = null;
+        solConnectedWalletRef.current = null;
+        solConnectedAccountRef.current = null;
+        clearPersistedSession(resolvedStorage, normalizedConfig.app.storageKey);
       } else if (session.namespace === "evm" && evmAdapter) {
         const connection = getWagmiConnection(evmAdapter.config);
         if (connection.connector) await wagmiDisconnect(evmAdapter.config, { connector: connection.connector });
       }
       setError(null);
-      clearPersistedSession(resolvedStorage, normalizedConfig.app.storageKey);
       setSession({ ...DEFAULT_SESSION, status: "disconnected" });
     } catch (caughtError) {
       const err = normalizeWalletError(caughtError, WalletErrorCode.DisconnectFailed, "Failed to disconnect.");
       setError(err);
       throw err;
     }
-  }, [evmAdapter, normalizedConfig.app.storageKey, resolvedStorage, session.namespace, session.walletId, solAdapter]);
+  }, [evmAdapter, normalizedConfig.app.storageKey, resolveSolWallet, resolvedStorage, session.namespace, session.walletId]);
 
   const reconnectWallet = useCallback(async (): Promise<void> => {
     const persisted = readPersistedSession(resolvedStorage, normalizedConfig.app.storageKey);
-    if (!persisted) return;
-    if (persisted.namespace === "sol") {
-      await connectSolWallet(persisted.walletId, true);
-      return;
-    }
-    if (!evmAdapter) return;
-    try {
-      setError(null);
-      await wagmiReconnect(evmAdapter.config);
-      const connection = getWagmiConnection(evmAdapter.config);
-      if (connection.status === "connected" && connection.connector) {
-        setSession({
-          namespace: "evm",
-          walletId: persisted.walletId,
-          account: connection.address,
-          status: "connected",
-          connected: true,
-          evm: { chainId: connection.chainId },
-        });
-      }
-    } catch (caughtError) {
-      const err = normalizeWalletError(caughtError, WalletErrorCode.AutoReconnectFailed, "Reconnect failed.");
-      setError(err);
-      throw err;
-    }
-  }, [connectSolWallet, evmAdapter, normalizedConfig.app.storageKey, resolvedStorage]);
+    if (!persisted || persisted.namespace !== "sol") return;
+    await connectSolWallet(persisted.walletId, true);
+  }, [connectSolWallet, normalizedConfig.app.storageKey, resolvedStorage]);
 
   const signMessage = useCallback(async (message: SignableMessage): Promise<SignMessageResult> => {
     if (!session.namespace || !session.walletId || !session.account) throw new WalletKitError(WalletErrorCode.ProviderNotReady, "No connected wallet.");
@@ -414,9 +476,11 @@ function WalletProviderBase({
         setError(null);
         return { namespace: "evm", walletId: session.walletId, account: session.account, signature };
       }
-      const wallet = solAdapter?.wallets.find((w) => resolveWalletId(w) === session.walletId) as any;
+      const wallet = solConnectedWalletRef.current ?? (session.walletId ? resolveSolWallet(session.walletId) as any : null);
       if (!wallet) throw new WalletKitError(WalletErrorCode.WalletNotFound, "Solana wallet not found.");
-      const account = wallet.accounts.find((item: any) => item.address === session.account) ?? wallet.accounts[0];
+      const account = getSolAccountAddress(solConnectedAccountRef.current) === session.account
+        ? solConnectedAccountRef.current
+        : resolveSolAccount(wallet);
       const signMessageFeature = wallet.features[SolanaSignMessage];
       if (!signMessageFeature) throw new WalletKitError(WalletErrorCode.UnsupportedFeature, "Wallet does not support signMessage.");
       const [result] = await signMessageFeature.signMessage({ account, message: toMessageBytes(message) });
@@ -427,7 +491,7 @@ function WalletProviderBase({
       setError(err);
       throw err;
     }
-  }, [evmAdapter, session.account, session.namespace, session.walletId, solAdapter]);
+  }, [evmAdapter, resolveSolAccount, resolveSolWallet, session.account, session.namespace, session.walletId]);
 
   const sendTransaction = useCallback(async (request: TransactionRequest): Promise<TransactionResult> => {
     if (!session.namespace || !session.walletId || !session.account) throw new WalletKitError(WalletErrorCode.ProviderNotReady, "No connected wallet.");
@@ -437,8 +501,10 @@ function WalletProviderBase({
         const hash = await wagmiSendTransaction(evmAdapter.config, { to: request.to as `0x${string}`, value: request.value ? BigInt(request.value) : undefined, data: request.data as `0x${string}` | undefined });
         return { hash, namespace: "evm" };
       }
-      const wallet = solAdapter?.wallets.find((w) => resolveWalletId(w) === session.walletId) as any;
-      const account = wallet?.accounts.find((item: any) => item.address === session.account) ?? wallet?.accounts[0];
+      const wallet = solConnectedWalletRef.current ?? (session.walletId ? resolveSolWallet(session.walletId) as any : null);
+      const account = getSolAccountAddress(solConnectedAccountRef.current) === session.account
+        ? solConnectedAccountRef.current
+        : wallet ? resolveSolAccount(wallet) : null;
       const signAndSendFeature = wallet?.features[SolanaSignAndSendTransaction];
       if (!signAndSendFeature) throw new WalletKitError(WalletErrorCode.UnsupportedFeature, "Wallet does not support signAndSendTransaction.");
       const [result] = await signAndSendFeature.signAndSendTransaction({ account, transaction: request.data as any, chain: `solana:${normalizedConfig.sol.cluster}` as any });
@@ -448,7 +514,8 @@ function WalletProviderBase({
       setError(err);
       throw err;
     }
-  }, [evmAdapter, normalizedConfig.sol.cluster, session, solAdapter]);
+  }, [evmAdapter, normalizedConfig.sol.cluster, resolveSolAccount, resolveSolWallet, session]);
+
 
   const switchChain = useCallback(async (options: SwitchChainOptions): Promise<void> => {
     if (session.namespace !== "evm" || !evmAdapter) throw new WalletKitError(WalletErrorCode.UnsupportedFeature, "Switching chain is only supported for EVM.");
@@ -461,11 +528,11 @@ function WalletProviderBase({
   }, [evmAdapter, session.namespace]);
 
   useEffect(() => {
-    if (hydrated && !autoReconnectAttemptedRef.current && normalizedConfig.app.autoReconnect) {
+    if (hydrated && !autoReconnectAttemptedRef.current && normalizedConfig.sol.autoReconnect) {
       autoReconnectAttemptedRef.current = true;
       reconnectWallet().catch(() => setSession((current) => ({ ...current, status: "disconnected" })));
     }
-  }, [hydrated, normalizedConfig.app.autoReconnect, reconnectWallet]);
+  }, [hydrated, normalizedConfig.sol.autoReconnect, reconnectWallet]);
 
   useEffect(() => {
     if (session.connected) setModalOpen(false);
@@ -532,7 +599,7 @@ export function WalletKitProvider({
   return (
     <QueryClientProvider client={queryClient}>
       {wagmiConfig ? (
-        <WagmiProvider config={wagmiConfig} reconnectOnMount={false}>
+        <WagmiProvider config={wagmiConfig} reconnectOnMount={normalizedConfig.evm.reconnectOnMount}>
           {provider}
         </WagmiProvider>
       ) : (

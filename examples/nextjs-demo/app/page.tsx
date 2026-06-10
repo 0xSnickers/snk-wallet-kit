@@ -14,12 +14,21 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
   },
   card: {
-    maxWidth: "880px",
+    maxWidth: "960px",
     margin: "0 auto",
     background: "#111827",
     border: "1px solid #334155",
     borderRadius: "16px",
     padding: "24px",
+  },
+  intro: {
+    margin: "0 0 24px",
+    padding: "16px",
+    borderRadius: "12px",
+    background: "#020617",
+    border: "1px solid #1e293b",
+    color: "#cbd5e1",
+    lineHeight: 1.6,
   },
 };
 
@@ -28,6 +37,10 @@ export default function Home() {
     <div style={styles.page}>
       <div style={styles.card}>
         <Header />
+        <div style={styles.intro}>
+          This demo shows the recommended host-owned integration: wagmi owns EVM connection state, and
+          snk-wallet-kit adds wallet UI, cross-chain hooks, and Solana session restore on top.
+        </div>
         <StatusDisplay />
         <WalletActions />
       </div>

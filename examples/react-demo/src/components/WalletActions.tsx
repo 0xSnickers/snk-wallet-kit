@@ -61,36 +61,26 @@ const styles: Record<string, CSSProperties> = {
 };
 
 export function WalletActions() {
-  const { disconnect, signMessage, sendTransaction, switchChain, session } =
+  const { disconnect, reconnect, signMessage, sendTransaction, switchChain, session } =
     useConnectWallet();
-  const [message, setMessage] = useState("hello from snk wallet plugin");
+  const [message, setMessage] = useState("hello from snk-wallet-kit demo");
   const [result, setResult] = useState<any>(null);
 
-  const handleSendTx = async () => {
+  const run = async (action: () => Promise<unknown>) => {
     try {
-      const res = await sendTransaction({
-        namespace: session.namespace!,
-        to: "0x0000000000000000000000000000000000000000",
-        value: "0",
+      const next = await action();
+      setResult(next ?? { ok: true });
+    } catch (error) {
+      setResult({
+        message: error instanceof Error ? error.message : "Unknown error",
       });
-      setResult(res);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleSwitchChain = async () => {
-    try {
-      await switchChain({ chainId: 11155111 });
-    } catch (e) {
-      console.error(e);
     }
   };
 
   return (
     <>
       <div style={styles.section}>
-        <div style={styles.label}>Current Wallet</div>
+        <div style={styles.label}>Current wallet</div>
         <div style={styles.value}>
           {session.namespace && session.walletId
             ? `${session.namespace}:${session.walletId}`
@@ -106,33 +96,44 @@ export function WalletActions() {
           onChange={(event) => setMessage(event.target.value)}
         />
         <div style={styles.grid}>
-          <button
-            style={styles.button}
-            onClick={() => void signMessage(message).then(setResult)}
-          >
+          <button style={styles.button} onClick={() => void run(() => signMessage(message))}>
             Sign Message
           </button>
-          <button style={styles.button} onClick={handleSendTx}>
+          <button
+            style={styles.button}
+            onClick={() =>
+              void run(() =>
+                sendTransaction({
+                  namespace: session.namespace!,
+                  to: "0x0000000000000000000000000000000000000000",
+                  value: "0",
+                }),
+              )
+            }
+          >
             Send Dummy Tx
           </button>
           {session.namespace === "evm" && (
-            <button style={styles.button} onClick={handleSwitchChain}>
+            <button
+              style={styles.button}
+              onClick={() => void run(() => switchChain({ chainId: 11155111 }))}
+            >
               Switch to Sepolia
             </button>
           )}
-          <button
-            style={styles.buttonSecondary}
-            onClick={() => void disconnect()}
-          >
+          <button style={styles.buttonSecondary} onClick={() => void run(() => reconnect())}>
+            Reconnect
+          </button>
+          <button style={styles.buttonSecondary} onClick={() => void run(() => disconnect())}>
             Disconnect
           </button>
         </div>
       </div>
 
       <div style={styles.section}>
-        <div style={styles.label}>Last Signature Result</div>
+        <div style={styles.label}>Last action result</div>
         <pre style={styles.pre}>
-          {result ? JSON.stringify(result, null, 2) : "No signature yet."}
+          {result ? JSON.stringify(result, null, 2) : "No action yet."}
         </pre>
       </div>
     </>

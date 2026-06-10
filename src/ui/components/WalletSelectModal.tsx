@@ -27,6 +27,11 @@ export type WalletSelectModalProps = {
   className?: string;
 };
 
+type RecoveryState = {
+  kind: "phantom-onboarding";
+  wallet: WalletDescriptor;
+};
+
 const walletPriority: Record<string, number> = {
   phantom: 1,
   jupiter: 2,
@@ -53,6 +58,25 @@ const defaultWalletSort = (left: WalletDescriptor, right: WalletDescriptor) => {
   return left.name.localeCompare(right.name);
 };
 
+function resolveRecoveryState(wallet: WalletDescriptor, message: string): RecoveryState | null {
+  const normalizedMessage = message.toLowerCase();
+  const isPhantomOnboarding = wallet.walletId === "phantom" && (
+    normalizedMessage.includes("phantom extension connection was interrupted") ||
+    normalizedMessage.includes("disconnected port object") ||
+    normalizedMessage.includes("service worker") ||
+    normalizedMessage.includes("onboarding")
+  );
+
+  if (isPhantomOnboarding) {
+    return {
+      kind: "phantom-onboarding",
+      wallet,
+    };
+  }
+
+  return null;
+}
+
 export function WalletSelectModal({
   open,
   onOpenChange,
@@ -67,14 +91,23 @@ export function WalletSelectModal({
   const error = useWalletError();
   const [pendingWalletKey, setPendingWalletKey] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [recoveryState, setRecoveryState] = useState<RecoveryState | null>(null);
   const titleId = useId();
+  const resolvedOpen = open ?? modal.open;
+  const setResolvedOpen = onOpenChange ?? modal.setOpen;
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const resolvedOpen = open ?? modal.open;
-  const setResolvedOpen = onOpenChange ?? modal.setOpen;
+  useEffect(() => {
+    if (!resolvedOpen) {
+      setLocalError(null);
+      setPendingWalletKey(null);
+      setRecoveryState(null);
+    }
+  }, [resolvedOpen]);
 
   const visibleWallets = useMemo(() => {
     const filtered = walletFilter ? wallets.filter(walletFilter) : wallets;
@@ -96,13 +129,37 @@ export function WalletSelectModal({
   const handleConnect = async (wallet: WalletDescriptor) => {
     const key = `${wallet.namespace}:${wallet.walletId}`;
     setPendingWalletKey(key);
+    setLocalError(null);
+    setRecoveryState(null);
     try {
       await connect({ namespace: wallet.namespace, walletId: wallet.walletId });
       setResolvedOpen(false);
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : "Failed to connect wallet.";
+      setLocalError(message);
+      setRecoveryState(resolveRecoveryState(wallet, message));
     } finally {
       setPendingWalletKey(null);
     }
   };
+
+  const handleDisconnect = async () => {
+    setLocalError(null);
+    setRecoveryState(null);
+    try {
+      await disconnect();
+    } catch (caughtError) {
+      setLocalError(caughtError instanceof Error ? caughtError.message : "Failed to disconnect wallet.");
+    }
+  };
+
+  const handleRetryRecovery = async () => {
+    if (!recoveryState) return;
+    await handleConnect(recoveryState.wallet);
+  };
+
+  const modalError = localError ?? (pendingWalletKey ? error?.message ?? null : null);
+  const showErrorBar = Boolean(modalError) && !recoveryState;
 
   return createPortal(
     <div
@@ -150,7 +207,7 @@ export function WalletSelectModal({
               </div>
               <button
                 type="button"
-                onClick={() => disconnect()}
+                onClick={() => void handleDisconnect()}
                 className="snk-wallet-kit__disconnectButton"
               >
                 Disconnect
@@ -170,7 +227,7 @@ export function WalletSelectModal({
                       <button
                         type="button"
                         key={key}
-                        onClick={() => handleConnect(wallet)}
+                        onClick={() => void handleConnect(wallet)}
                         disabled={isPending}
                         className={cn(
                           "snk-wallet-kit__walletOption",
@@ -219,9 +276,34 @@ export function WalletSelectModal({
           )}
         </div>
 
-        {error && (
+        {recoveryState?.kind === "phantom-onboarding" && (
+          <div className="snk-wallet-kit__recoveryCard">
+            <div className="snk-wallet-kit__recoveryTitle">Finish Phantom setup first</div>
+            <p className="snk-wallet-kit__recoveryText">
+              Phantom needs to finish onboarding or unlock before it can connect.
+            </p>
+            <div className="snk-wallet-kit__recoveryActions">
+              <button
+                type="button"
+                className="snk-wallet-kit__recoveryButton"
+                onClick={() => window.open("https://chromewebstore.google.com/detail/phantom/bfnaelmomeimhlpmgjnjophhpkkoljpa?hl=zh-CN&utm_source=ext_sidebar", "_blank", "noopener,noreferrer")}
+              >
+                Open Phantom
+              </button>
+              <button
+                type="button"
+                className="snk-wallet-kit__recoveryButtonSecondary"
+                onClick={() => void handleRetryRecovery()}
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showErrorBar && (
           <div className="snk-wallet-kit__errorBar">
-            <p className="snk-wallet-kit__errorText">{error.message}</p>
+            <p className="snk-wallet-kit__errorText">{modalError}</p>
           </div>
         )}
       </div>

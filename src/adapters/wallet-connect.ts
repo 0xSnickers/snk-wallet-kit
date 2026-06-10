@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   ChainNotConfiguredError,
   createConnector,
@@ -13,7 +12,7 @@ import {
   UserRejectedRequestError,
 } from "viem";
 
-type WalletConnectParameters = {
+export type WalletConnectParameters = {
   projectId: string;
   showQrModal?: boolean;
   qrModalOptions?: Record<string, unknown>;
@@ -26,26 +25,9 @@ type WalletConnectParameters = {
   isNewChainsStale?: boolean;
 };
 
-type WalletConnectProvider = {
-  accounts: string[];
-  chainId: number;
-  session?: {
-    namespaces?: Record<string, { accounts?: string[] }>;
-  };
-  events?: {
-    setMaxListeners?: (count: number) => void;
-  };
-  connect: (parameters: Record<string, unknown>) => Promise<void>;
-  disconnect: () => Promise<void>;
-  enable: () => Promise<string[]>;
-  on: (event: string, listener: (...args: any[]) => void) => void;
-  removeListener: (event: string, listener: (...args: any[]) => void) => void;
-  request: (request: { method: string; params?: unknown[] }) => Promise<unknown>;
-};
-
 type WalletConnectProviderModule = {
   EthereumProvider: {
-    init: (parameters: Record<string, unknown>) => Promise<WalletConnectProvider>;
+    init: (parameters: Record<string, unknown>) => Promise<any>;
   };
 };
 
@@ -63,11 +45,11 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
   let sessionDelete: ((...args: any[]) => void) | undefined;
   let disconnect: ((...args: any[]) => void) | undefined;
 
-  return createConnector((config) => ({
+  return createConnector((config: any) => ({
     id: "walletConnect",
     name: "WalletConnect",
     type: walletConnectConnector.type,
-    async setup() {
+    async setup(this: any) {
       const provider = await this.getProvider().catch(() => null);
       if (!provider) return;
       if (!connect) {
@@ -79,9 +61,9 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
         provider.on("session_delete", sessionDelete);
       }
     },
-    async connect({ chainId, withCapabilities, ...rest } = {}) {
+    async connect(this: any, { chainId, withCapabilities, ...rest }: any = {}) {
       try {
-        const provider = await this.getProvider() as WalletConnectProvider;
+        const provider = await this.getProvider();
         if (!provider) throw new ProviderNotFoundError();
         if (!displayUri) {
           displayUri = this.onDisplayUri;
@@ -92,7 +74,7 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
         if (!targetChainId) {
           const state = (await config.storage?.getItem("state")) ?? {};
           const storedChainId = (state as { chainId?: number }).chainId;
-          const isChainSupported = config.chains.some((chain) => chain.id === storedChainId);
+          const isChainSupported = config.chains.some((chain: any) => chain.id === storedChainId);
           targetChainId = isChainSupported ? storedChainId : config.chains[0]?.id;
         }
         if (!targetChainId) throw new Error("No chains found on connector.");
@@ -102,19 +84,19 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
 
         if (!provider.session || isChainsStale) {
           const optionalChains = config.chains
-            .filter((chain) => chain.id !== targetChainId)
-            .map((chain) => chain.id);
+            .filter((chain: any) => chain.id !== targetChainId)
+            .map((chain: any) => chain.id);
           await provider.connect({
             optionalChains: [targetChainId, ...optionalChains],
             ...("pairingTopic" in rest ? { pairingTopic: rest.pairingTopic } : {}),
           });
-          this.setRequestedChainsIds(config.chains.map((chain) => chain.id));
+          this.setRequestedChainsIds(config.chains.map((chain: any) => chain.id));
         }
 
-        const accounts = (await provider.enable()).map((account: string) => getAddress(account));
+        const accounts = (await provider.enable()).map((account: string) => getAddress(account as `0x${string}`));
         let currentChainId = await this.getChainId();
         if (chainId && currentChainId !== chainId) {
-          const chain = await this.switchChain({ chainId }).catch((error) => {
+          const chain = await this.switchChain({ chainId }).catch((error: any) => {
             if (
               error.code === UserRejectedRequestError.code &&
               error.cause?.message !== "Missing or invalid. request() method: wallet_addEthereumChain"
@@ -156,15 +138,15 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
             ? accounts.map((address: string) => ({ address, capabilities: {} }))
             : accounts,
           chainId: currentChainId,
-        };
+        } as any;
       } catch (error) {
-        if (/(user rejected|connection request reset)/i.test((error as Error)?.message)) {
+        if (/(user rejected|connection request reset)/i.test((error as Error)?.message ?? "")) {
           throw new UserRejectedRequestError(error as Error);
         }
         throw error;
       }
     },
-    async disconnect() {
+    async disconnect(this: any) {
       const provider = await this.getProvider();
       try {
         await provider?.disconnect();
@@ -194,31 +176,32 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
         this.setRequestedChainsIds([]);
       }
     },
-    async getAccounts() {
-      const provider = await this.getProvider() as WalletConnectProvider;
-      return provider.accounts.map((account) => getAddress(account));
+    async getAccounts(this: any) {
+      const provider = await this.getProvider();
+      return provider.accounts.map((account: string) => getAddress(account as `0x${string}`));
     },
-    async getProvider({ chainId } = {}) {
+    async getProvider(this: any, { chainId }: { chainId?: number } = {}) {
       async function initProvider() {
-        const optionalChains = config.chains.map((chain) => chain.id);
+        const optionalChains = config.chains.map((chain: any) => chain.id);
         if (!optionalChains.length) return undefined;
-        const { EthereumProvider } = await import("@walletconnect/ethereum-provider")
-          .catch(() => {
-            throw new Error('dependency "@walletconnect/ethereum-provider" not found');
-          }) as unknown as WalletConnectProviderModule;
+        const { EthereumProvider } = (await import("@walletconnect/ethereum-provider").catch(() => {
+          throw new Error('dependency "@walletconnect/ethereum-provider" not found');
+        })) as unknown as WalletConnectProviderModule;
 
         return EthereumProvider.init({
           ...parameters,
           disableProviderPing: true,
           optionalChains,
           projectId: parameters.projectId,
-          rpcMap: Object.fromEntries(config.chains.map((chain) => {
-            const [url] = extractRpcUrls({
-              chain,
-              transports: config.transports,
-            });
-            return [chain.id, url];
-          })),
+          rpcMap: Object.fromEntries(
+            config.chains.map((chain: any) => {
+              const [url] = extractRpcUrls({
+                chain,
+                transports: config.transports,
+              });
+              return [chain.id, url];
+            }),
+          ),
           showQrModal: parameters.showQrModal ?? true,
         });
       }
@@ -229,13 +212,13 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
         provider_?.events?.setMaxListeners?.(Number.POSITIVE_INFINITY);
       }
       if (chainId) await this.switchChain?.({ chainId });
-      return provider_ as any;
+      return provider_;
     },
-    async getChainId() {
-      const provider = await this.getProvider() as WalletConnectProvider;
+    async getChainId(this: any) {
+      const provider = await this.getProvider();
       return provider.chainId;
     },
-    async isAuthorized() {
+    async isAuthorized(this: any) {
       try {
         const [accounts, provider] = await Promise.all([
           this.getAccounts(),
@@ -243,7 +226,7 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
         ]);
         if (!accounts.length) return false;
         const isChainsStale = await this.isChainsStale();
-        if (isChainsStale && (provider as WalletConnectProvider).session) {
+        if (isChainsStale && provider.session) {
           await provider.disconnect().catch(() => {});
           return false;
         }
@@ -252,22 +235,22 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
         return false;
       }
     },
-    async switchChain({ addEthereumChainParameter, chainId }) {
-      const provider = await this.getProvider() as WalletConnectProvider;
+    async switchChain(this: any, { addEthereumChainParameter, chainId }: any) {
+      const provider = await this.getProvider();
       if (!provider) throw new ProviderNotFoundError();
-      const chain = config.chains.find((item) => item.id === chainId);
+      const chain = config.chains.find((item: any) => item.id === chainId);
       if (!chain) throw new SwitchChainError(new ChainNotConfiguredError());
 
-      let listener = () => {};
+      let listener: (opts?: { chainId?: number }) => void = () => {};
       try {
         await Promise.all([
           new Promise<void>((resolve) => {
-            listener = ((opts: { chainId?: number }) => {
-              if (opts.chainId === chainId) {
+            listener = (opts?: { chainId?: number }) => {
+              if (opts?.chainId === chainId) {
                 config.emitter.off("change", listener);
                 resolve();
               }
-            }) as any;
+            };
             config.emitter.on("change", listener);
           }),
           provider.request({
@@ -309,21 +292,21 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
         }
       }
     },
-    onAccountsChanged(accounts) {
+    onAccountsChanged(this: any, accounts: string[]) {
       if (accounts.length === 0) this.onDisconnect();
       else config.emitter.emit("change", {
-        accounts: accounts.map((account) => getAddress(account)),
+        accounts: accounts.map((account: string) => getAddress(account as `0x${string}`)),
       });
     },
-    onChainChanged(chain) {
+    onChainChanged(_this: any, chain: string | number) {
       config.emitter.emit("change", { chainId: Number(chain) });
     },
-    async onConnect(connectInfo) {
+    async onConnect(this: any, connectInfo: any) {
       const chainId = Number(connectInfo.chainId);
       const accounts = await this.getAccounts();
       config.emitter.emit("connect", { accounts, chainId });
     },
-    async onDisconnect() {
+    async onDisconnect(this: any) {
       this.setRequestedChainsIds([]);
       config.emitter.emit("disconnect");
       const provider = await this.getProvider();
@@ -348,10 +331,10 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
         provider.on("connect", connect);
       }
     },
-    onDisplayUri(uri: string) {
+    onDisplayUri(_this: any, uri: string) {
       config.emitter.emit("message", { type: "display_uri", data: uri });
     },
-    onSessionDelete() {
+    onSessionDelete(this: any) {
       this.onDisconnect();
     },
     getNamespaceChainsIds() {
@@ -361,26 +344,26 @@ export function walletConnectConnector(parameters: WalletConnectParameters) {
       });
       return chainIds ?? [];
     },
-    async getRequestedChainsIds() {
+    async getRequestedChainsIds(this: any) {
       return ((await config.storage?.getItem(this.requestedChainsStorageKey)) ?? []) as number[];
     },
-    async isChainsStale() {
+    async isChainsStale(this: any) {
       if (!isNewChainsStale) return false;
-      const connectorChains = config.chains.map((chain) => chain.id);
+      const connectorChains = config.chains.map((chain: any) => chain.id);
       const namespaceChains = this.getNamespaceChainsIds();
       if (namespaceChains.length && !namespaceChains.some((id: number) => connectorChains.includes(id))) {
         return false;
       }
       const requestedChains = await this.getRequestedChainsIds();
-      return !connectorChains.every((id) => requestedChains.includes(id));
+      return !connectorChains.every((id: number) => requestedChains.includes(id));
     },
-    async setRequestedChainsIds(chains: number[]) {
+    async setRequestedChainsIds(this: any, chains: number[]) {
       await config.storage?.setItem(this.requestedChainsStorageKey, chains);
     },
     get requestedChainsStorageKey() {
       return `${this.id}.requestedChains`;
     },
-  })) as CreateConnectorFn;
+  }) as any) as CreateConnectorFn;
 }
 
 export namespace walletConnectConnector {

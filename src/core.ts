@@ -48,7 +48,7 @@ export type EvmConfig = {
   enabled?: boolean;
   chains?: string[];
   wallets?: EvmWalletId[];
-  autoConnect?: boolean;
+  reconnectOnMount?: boolean;
   walletConnectProjectId?: string;
   coinbaseAppName?: string;
 };
@@ -57,12 +57,11 @@ export type SolConfig = {
   enabled?: boolean;
   wallets?: SolWalletId[];
   cluster?: SolCluster;
-  autoConnect?: boolean;
+  autoReconnect?: boolean;
 };
 
 export type AppConfig = {
   storageKey?: string;
-  autoReconnect?: boolean;
   ssr?: boolean;
 };
 
@@ -73,10 +72,10 @@ export type WalletKitConfig = {
 };
 
 export type NormalizedWalletKitConfig = {
-  evm: Required<Pick<EvmConfig, "enabled" | "chains" | "wallets" | "autoConnect">> &
+  evm: Required<Pick<EvmConfig, "enabled" | "chains" | "wallets" | "reconnectOnMount">> &
     Pick<EvmConfig, "walletConnectProjectId" | "coinbaseAppName">;
-  sol: Required<Pick<SolConfig, "enabled" | "wallets" | "cluster" | "autoConnect">>;
-  app: Required<Pick<AppConfig, "storageKey" | "autoReconnect" | "ssr">>;
+  sol: Required<Pick<SolConfig, "enabled" | "wallets" | "cluster" | "autoReconnect">>;
+  app: Required<Pick<AppConfig, "storageKey" | "ssr">>;
 };
 
 export type ConnectOptions = {
@@ -141,7 +140,7 @@ export function normalizeConfig(config: WalletKitConfig = {}): NormalizedWalletK
       enabled: config.evm?.enabled ?? evmWallets.length > 0,
       chains: config.evm?.chains ?? ["mainnet", "sepolia"],
       wallets: evmWallets,
-      autoConnect: config.evm?.autoConnect ?? true,
+      reconnectOnMount: config.evm?.reconnectOnMount ?? true,
       walletConnectProjectId: config.evm?.walletConnectProjectId,
       coinbaseAppName: config.evm?.coinbaseAppName,
     },
@@ -149,11 +148,10 @@ export function normalizeConfig(config: WalletKitConfig = {}): NormalizedWalletK
       enabled: config.sol?.enabled ?? solWallets.length > 0,
       wallets: solWallets,
       cluster: config.sol?.cluster ?? "mainnet-beta",
-      autoConnect: config.sol?.autoConnect ?? true,
+      autoReconnect: config.sol?.autoReconnect ?? true,
     },
     app: {
       storageKey: config.app?.storageKey ?? DEFAULT_STORAGE_KEY,
-      autoReconnect: config.app?.autoReconnect ?? true,
       ssr: config.app?.ssr ?? true,
     },
   };
@@ -265,4 +263,39 @@ export function toMessageBytes(message: SignableMessage): Uint8Array {
 
 export function bytesToHex(bytes: Uint8Array): string {
   return `0x${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+}
+
+const BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+
+export function bytesToBase58(bytes: Uint8Array): string {
+  if (bytes.length === 0) {
+    return "";
+  }
+
+  const digits = [0];
+  for (const byte of bytes) {
+    let carry = byte;
+    for (let index = 0; index < digits.length; index += 1) {
+      const value = digits[index] * 256 + carry;
+      digits[index] = value % 58;
+      carry = Math.floor(value / 58);
+    }
+    while (carry > 0) {
+      digits.push(carry % 58);
+      carry = Math.floor(carry / 58);
+    }
+  }
+
+  for (const byte of bytes) {
+    if (byte === 0) {
+      digits.push(0);
+      continue;
+    }
+    break;
+  }
+
+  return digits
+    .reverse()
+    .map((digit) => BASE58_ALPHABET[digit])
+    .join("");
 }

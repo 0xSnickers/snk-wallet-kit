@@ -1,10 +1,11 @@
 "use client";
 
-import { useAccount, useChainId } from "wagmi";
+import { useChainId, useConnection } from "wagmi";
 import {
   useCurrentAccount,
-  useWalletStatus,
   useWalletError,
+  useWalletStatus,
+  useConnectWallet,
 } from "snk-wallet-kit";
 import type { CSSProperties } from "react";
 
@@ -20,6 +21,18 @@ const styles: Record<string, CSSProperties> = {
   value: {
     fontSize: "16px",
     wordBreak: "break-all",
+  },
+  grid: {
+    display: "grid",
+    gap: "16px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    marginBottom: "20px",
+  },
+  panel: {
+    padding: "16px",
+    borderRadius: "12px",
+    border: "1px solid #334155",
+    background: "#0f172a",
   },
   pre: {
     margin: 0,
@@ -37,39 +50,47 @@ export function StatusDisplay() {
   const account = useCurrentAccount();
   const status = useWalletStatus();
   const error = useWalletError();
-  const wagmiAccount = useAccount();
+  const { session } = useConnectWallet();
+  const wagmiConnection = useConnection();
   const wagmiChainId = useChainId();
 
   return (
     <>
-      <div style={styles.section}>
-        <div style={styles.label}>Status</div>
-        <div style={styles.value}>{status}</div>
-      </div>
+      <div style={styles.grid}>
+        <div style={styles.panel}>
+          <div style={styles.section}>
+            <div style={styles.label}>Kit status</div>
+            <div style={styles.value}>{status}</div>
+          </div>
+          <div style={styles.section}>
+            <div style={styles.label}>Kit account</div>
+            <div style={styles.value}>{account ?? "-"}</div>
+          </div>
+          <div style={styles.section}>
+            <div style={styles.label}>Kit session</div>
+            <pre style={styles.pre}>{JSON.stringify(session, null, 2)}</pre>
+          </div>
+        </div>
 
-      <div style={styles.section}>
-        <div style={styles.label}>Account (useCurrentAccount)</div>
-        <div style={styles.value}>{account ?? "-"}</div>
-      </div>
-
-      <div style={styles.section}>
-        <div style={styles.label}>Account (wagmi: useAccount)</div>
-        <div style={styles.value}>
-          {wagmiAccount.address ?? "-"}
-          {wagmiAccount.isConnected && " (connected)"}
+        <div style={styles.panel}>
+          <div style={styles.section}>
+            <div style={styles.label}>wagmi address</div>
+            <div style={styles.value}>{wagmiConnection.address ?? "-"}</div>
+          </div>
+          <div style={styles.section}>
+            <div style={styles.label}>wagmi status</div>
+            <div style={styles.value}>{wagmiConnection.status}</div>
+          </div>
+          <div style={styles.section}>
+            <div style={styles.label}>wagmi chainId</div>
+            <div style={styles.value}>{wagmiChainId ?? "-"}</div>
+          </div>
         </div>
       </div>
 
       <div style={styles.section}>
-        <div style={styles.label}>Chain ID (wagmi: useChainId)</div>
-        <div style={styles.value}>{wagmiChainId ?? "-"}</div>
-      </div>
-
-      <div style={styles.section}>
-        <div style={styles.label}>Last Error</div>
-        <pre style={styles.pre}>
-          {error ? JSON.stringify(error, null, 2) : "No error."}
-        </pre>
+        <div style={styles.label}>Last error</div>
+        <pre style={styles.pre}>{error ? JSON.stringify(error, null, 2) : "No error."}</pre>
       </div>
     </>
   );

@@ -11,7 +11,10 @@ const queryClient = new QueryClient() as any;
 export function ProviderWrapper({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
-      <WagmiProvider config={wagmiConfig}>
+      <WagmiProvider
+        config={wagmiConfig}
+        reconnectOnMount={walletKitConfig.evm?.reconnectOnMount}
+      >
         <WalletCoreProvider
           config={walletKitConfig}
           queryClient={queryClient}

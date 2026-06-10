@@ -14,7 +14,7 @@
 - Namespaced default CSS with no global reset or Tailwind utility leakage.
 - Built-in wallet icons for MetaMask, OKX Wallet, and WalletConnect.
 - Precise wallet routing for multi-wallet browser environments.
-- Core wallet actions including connect, disconnect, auto reconnect, sign message, send transaction, and switch chain for EVM.
+- Core wallet actions including connect, disconnect, reconnect, sign message, send transaction, and switch chain for EVM.
 - SSR-friendly behavior for Next.js and standard React apps.
 - Flexible UI customization through hooks and modal controls.
 
@@ -23,7 +23,7 @@
 ## Installation
 
 ```bash
-npm install snk-wallet-kit
+npm install snk-wallet-kit wagmi viem @tanstack/react-query react react-dom
 ```
 
 ## Quick Start
@@ -40,14 +40,15 @@ const config = {
     chains: ["mainnet", "sepolia"],
     wallets: ["metaMask", "okxWallet", "walletConnect"],
     walletConnectProjectId: "YOUR_PROJECT_ID",
+    reconnectOnMount: true,
   },
   sol: {
     enabled: true,
     wallets: ["phantom", "jupiter"],
     cluster: "mainnet-beta",
+    autoReconnect: true,
   },
   app: {
-    autoReconnect: true,
     storageKey: "snk-wallet-kit-demo",
   },
 };
@@ -120,7 +121,12 @@ The stylesheet only uses `.snk-wallet-kit__*` selectors and does not include Tai
 
 ### Advanced Provider Composition
 
-`WalletProvider` and `WalletKitProvider` share the same ready-to-use behavior. `WalletCoreProvider` works with your own `QueryClientProvider` and `WagmiProvider`, which keeps wagmi and react-query hooks available in the same tree.
+Choose exactly one ownership mode:
+
+- `WalletKitProvider`: quick-start mode. The kit creates the internal `QueryClientProvider` and `WagmiProvider` for you.
+- `WalletCoreProvider`: host-owned mode. Your app owns the single `QueryClientProvider` and `WagmiProvider`, and the kit only provides UI and hooks on top of that existing state.
+
+Do not stack `WalletKitProvider` with your own `WagmiProvider` for the same tree.
 
 ```tsx
 import {
@@ -137,6 +143,7 @@ const config: WalletKitConfig = {
     chains: ["mainnet", "sepolia"],
     wallets: ["metaMask", "walletConnect"],
     walletConnectProjectId: "YOUR_PROJECT_ID",
+    reconnectOnMount: true,
   },
 };
 
@@ -146,7 +153,7 @@ const wagmiConfig = createWalletKitEvmConfig(config);
 export function Root() {
   return (
     <QueryClientProvider client={queryClient}>
-      <WagmiProvider config={wagmiConfig!}>
+      <WagmiProvider config={wagmiConfig!} reconnectOnMount={config.evm?.reconnectOnMount}>
         <WalletCoreProvider
           config={config}
           queryClient={queryClient}
@@ -160,9 +167,14 @@ export function Root() {
 }
 ```
 
+In `WalletCoreProvider` mode, EVM reconnect should come from your host wagmi setup, while Solana reconnect remains opt-in through `sol.autoReconnect`.
+
 ### Config Behavior
 
-When you explicitly configure either `evm.wallets` or `sol.wallets`, the other namespace will be disabled by default. This ensures the wallet selection modal only shows the wallets you explicitly configure.
+- `evm.reconnectOnMount` controls whether wagmi restores the EVM connection on mount.
+- `sol.autoReconnect` controls whether the kit silently restores the persisted Solana session on mount.
+- `app.storageKey` controls the kit's own storage namespace.
+- When you explicitly configure either `evm.wallets` or `sol.wallets`, the other namespace will be disabled by default. This ensures the wallet selection modal only shows the wallets you explicitly configure.
 
 ---
 
@@ -219,7 +231,7 @@ Standalone wallet modal with custom filter and sorting support. It renders into 
 - 默认样式使用专属命名空间，不注入全局 reset 或 Tailwind 通用 class。
 - 内置 MetaMask、OKX Wallet、WalletConnect 品牌图标。
 - 在多钱包浏览器环境中精确路由到目标钱包。
-- 提供连接、断开、自动重连、消息签名、发送交易、EVM 切链等能力。
+- 提供连接、断开、重连、消息签名、发送交易、EVM 切链等能力。
 - 兼容 SSR，适用于 Next.js 和常规 React 应用。
 - 支持通过 Hooks 和弹框控制实现自定义 UI。
 
@@ -228,7 +240,7 @@ Standalone wallet modal with custom filter and sorting support. It renders into 
 ## 安装
 
 ```bash
-npm install snk-wallet-kit
+npm install snk-wallet-kit wagmi viem @tanstack/react-query react react-dom
 ```
 
 ## 快速开始
@@ -245,14 +257,15 @@ const config = {
     chains: ["mainnet", "sepolia"],
     wallets: ["metaMask", "okxWallet", "walletConnect"],
     walletConnectProjectId: "YOUR_PROJECT_ID",
+    reconnectOnMount: true,
   },
   sol: {
     enabled: true,
     wallets: ["phantom", "jupiter"],
     cluster: "mainnet-beta",
+    autoReconnect: true,
   },
   app: {
-    autoReconnect: true,
     storageKey: "snk-wallet-kit-demo",
   },
 };
@@ -342,6 +355,7 @@ const config: WalletKitConfig = {
     chains: ["mainnet", "sepolia"],
     wallets: ["metaMask", "walletConnect"],
     walletConnectProjectId: "YOUR_PROJECT_ID",
+    reconnectOnMount: true,
   },
 };
 
@@ -351,7 +365,7 @@ const wagmiConfig = createWalletKitEvmConfig(config);
 export function Root() {
   return (
     <QueryClientProvider client={queryClient}>
-      <WagmiProvider config={wagmiConfig!}>
+      <WagmiProvider config={wagmiConfig!} reconnectOnMount={config.evm?.reconnectOnMount}>
         <WalletCoreProvider
           config={config}
           queryClient={queryClient}
@@ -367,7 +381,10 @@ export function Root() {
 
 ### 配置行为
 
-当你显式配置了 `evm.wallets` 或 `sol.wallets` 任一数组时，另一侧 namespace 默认不会启用。这确保钱包选择弹框只会展示你显式配置的钱包按钮。
+- `evm.reconnectOnMount`：控制 wagmi 是否在挂载时恢复 EVM 连接
+- `sol.autoReconnect`：控制库是否在挂载时静默恢复 Solana 会话
+- `app.storageKey`：控制库自身的本地存储命名空间
+- 当你显式配置了 `evm.wallets` 或 `sol.wallets` 任一数组时，另一侧 namespace 默认不会启用。这确保钱包选择弹框只会展示你显式配置的钱包按钮。
 
 ---
 

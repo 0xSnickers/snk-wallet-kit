@@ -14,14 +14,15 @@ export const walletKitConfig: WalletKitConfig = {
       ? ["metaMask", "okxWallet", "walletConnect"]
       : ["metaMask", "okxWallet"],
     walletConnectProjectId,
+    reconnectOnMount: true,
   },
   sol: {
     enabled: true,
     wallets: ["phantom", "jupiter"],
     cluster: "devnet",
+    autoReconnect: true,
   },
   app: {
-    autoReconnect: true,
     storageKey: "snk-wallet-react-demo",
   },
 };

@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { useWallet } from "./use-wallet";
+import { useWallet, useWalletModal } from "./use-wallet";
 import type { ConnectOptions, SignMessageResult, SignableMessage, SwitchChainOptions, TransactionRequest, TransactionResult } from "../core";
+
+export { useWallet, useWalletModal } from "./use-wallet";
 
 export function useAvailableWallets() {
   return useWallet().wallets;
