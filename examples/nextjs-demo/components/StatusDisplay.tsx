@@ -1,6 +1,7 @@
 "use client";
 
-import { useChainId, useConnection } from "wagmi";
+import { formatUnits } from "viem";
+import { useBalance, useChainId, useConnection } from "wagmi";
 import {
   useCurrentAccount,
   useWalletError,
@@ -53,6 +54,34 @@ export function StatusDisplay() {
   const { session } = useConnectWallet();
   const wagmiConnection = useConnection();
   const wagmiChainId = useChainId();
+  const balanceContextReady =
+    session.namespace === "evm" &&
+    wagmiConnection.status === "connected" &&
+    session.account?.toLowerCase() === wagmiConnection.address.toLowerCase() &&
+    session.evm?.chainId === wagmiConnection.chainId;
+  const {
+    data: balance,
+    error: balanceError,
+    isFetching: balanceFetching,
+  } = useBalance({
+    address: balanceContextReady ? wagmiConnection.address : undefined,
+    chainId: balanceContextReady ? wagmiConnection.chainId : undefined,
+    query: {
+      enabled: balanceContextReady,
+      gcTime: 0,
+    },
+  });
+  const formattedBalance = !balanceContextReady
+    ? session.namespace === "evm"
+      ? "Syncing wallet state..."
+      : "-"
+    : balanceFetching
+      ? "Refreshing..."
+      : balanceError
+        ? `Failed to load: ${balanceError.message}`
+        : balance
+          ? `${formatUnits(balance.value, balance.decimals)} ${balance.symbol}`
+          : "-";
 
   return (
     <>
@@ -84,6 +113,10 @@ export function StatusDisplay() {
           <div style={styles.section}>
             <div style={styles.label}>wagmi chainId</div>
             <div style={styles.value}>{wagmiChainId ?? "-"}</div>
+          </div>
+          <div style={styles.section}>
+            <div style={styles.label}>Current balance</div>
+            <div style={styles.value}>{session.namespace === "evm" ? formattedBalance : "-"}</div>
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@ import { createConfig, http, type Config, type CreateConnectorFn } from "wagmi";
 import { mainnet, sepolia } from "wagmi/chains";
 import { injected } from "@wagmi/core";
 
-import type { EvmWalletId, NormalizedWalletKitConfig, WalletDescriptor } from "../core";
+import type { EvmChainInput, EvmWalletId, NormalizedWalletKitConfig, WalletDescriptor } from "../core";
 import { WALLET_ICONS } from "../ui/constants";
 import { walletConnectConnector } from "./wallet-connect";
 
@@ -13,7 +13,7 @@ export type EvmAdapter = {
   wallets: WalletDescriptor[];
 };
 
-const CHAIN_MAP = {
+const PRESET_CHAINS = {
   mainnet,
   sepolia,
 } as const;
@@ -104,20 +104,26 @@ function getEnabledEvmWalletIds(config: NormalizedWalletKitConfig): EvmWalletId[
   });
 }
 
+function resolveChain(input: EvmChainInput): Chain | null {
+  if (typeof input === "string") {
+    return PRESET_CHAINS[input] ?? null;
+  }
+
+  return input as Chain;
+}
+
 function resolveChains(config: NormalizedWalletKitConfig): [Chain, ...Chain[]] | null {
   if (!config.evm.enabled) {
     return null;
   }
 
-  const resolvedChains = config.evm.chains
-    .map((chainName) => CHAIN_MAP[chainName as keyof typeof CHAIN_MAP])
-    .filter(Boolean);
+  const resolvedChains = config.evm.chains.map(resolveChain).filter((chain): chain is Chain => Boolean(chain));
 
   if (resolvedChains.length === 0) {
     return null;
   }
 
-  return resolvedChains as unknown as [Chain, ...Chain[]];
+  return resolvedChains as [Chain, ...Chain[]];
 }
 
 function createEvmConnectors(config: NormalizedWalletKitConfig): CreateConnectorFn[] {

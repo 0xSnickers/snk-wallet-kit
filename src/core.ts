@@ -18,6 +18,29 @@ export type WalletStatus =
 
 export type SolCluster = "mainnet-beta" | "devnet" | "testnet";
 
+export type PresetEvmChain = "mainnet" | "sepolia";
+export type EvmChainLike = {
+  id: number;
+  name: string;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+  rpcUrls: {
+    default: {
+      http: readonly string[];
+      webSocket?: readonly string[];
+    };
+    [key: string]: {
+      http: readonly string[];
+      webSocket?: readonly string[];
+    };
+  };
+  [key: string]: unknown;
+};
+export type EvmChainInput = PresetEvmChain | EvmChainLike;
+
 export type WalletDescriptor = {
   namespace: Namespace;
   walletId: string;
@@ -46,7 +69,7 @@ export type WalletSession = {
 
 export type EvmConfig = {
   enabled?: boolean;
-  chains?: string[];
+  chains?: EvmChainInput[];
   wallets?: EvmWalletId[];
   reconnectOnMount?: boolean;
   walletConnectProjectId?: string;

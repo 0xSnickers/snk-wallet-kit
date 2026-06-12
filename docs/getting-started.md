@@ -44,6 +44,45 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 }
 ```
 
+## 2.1 自定义 EVM 链（例如 Anvil）
+
+`evm.chains` 除了支持 `"mainnet"`、`"sepolia"`，也支持直接传入标准 `viem` `Chain` 对象。
+
+```tsx
+import { defineChain } from "viem";
+import { WalletProvider } from "snk-wallet-kit";
+
+const anvil = defineChain({
+  id: 31337,
+  name: "Anvil",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ["http://127.0.0.1:8545"],
+    },
+  },
+});
+
+const config = {
+  evm: {
+    enabled: true,
+    chains: [anvil],
+    wallets: ["metaMask"],
+    reconnectOnMount: true,
+  },
+};
+
+export function LocalChainProviders({ children }: { children: React.ReactNode }) {
+  return <WalletProvider config={config}>{children}</WalletProvider>;
+}
+```
+
+如果你的项目已经有自己的 wagmi config，或者你需要自己控制 transport / storage / 多链策略，更推荐使用 `WalletCoreProvider`。
+
 ## 3. 连接钱包
 
 推荐直接使用内置 Connect 按钮：

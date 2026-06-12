@@ -109,6 +109,41 @@ export default defineConfig({
 });
 ```
 
+### Custom EVM Chains
+
+`evm.chains` accepts either preset chain names or standard `viem` `Chain` objects.
+
+- Presets: `"mainnet"`, `"sepolia"`
+- Custom: any `Chain` created with `defineChain(...)`
+
+For local development networks like Anvil, define the chain in your app and pass it directly:
+
+```tsx
+import { defineChain } from "viem";
+
+const anvil = defineChain({
+  id: 31337,
+  name: "Anvil",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ["http://127.0.0.1:8545"],
+    },
+  },
+});
+
+const config = {
+  evm: {
+    enabled: true,
+    chains: [anvil],
+    wallets: ["metaMask"],
+    reconnectOnMount: true,
+  },
+};
+```
+
+For production-grade custom chain setups, prefer `WalletCoreProvider` so your app owns the wagmi config.
+
 ### Styling
 
 Import the default stylesheet once in your app entry:
@@ -325,6 +360,41 @@ export default defineConfig({
   },
 });
 ```
+
+### 自定义 EVM 链
+
+`evm.chains` 同时支持预置链名和标准 `viem` `Chain` 对象。
+
+- 预置链：`"mainnet"`、`"sepolia"`
+- 自定义链：任意通过 `defineChain(...)` 创建的 `Chain`
+
+如果你要接入 Anvil 这类本地开发链，推荐在宿主项目里定义链对象后直接传入：
+
+```tsx
+import { defineChain } from "viem";
+
+const anvil = defineChain({
+  id: 31337,
+  name: "Anvil",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ["http://127.0.0.1:8545"],
+    },
+  },
+});
+
+const config = {
+  evm: {
+    enabled: true,
+    chains: [anvil],
+    wallets: ["metaMask"],
+    reconnectOnMount: true,
+  },
+};
+```
+
+如果你有自定义 transport、多环境链配置或更复杂的连接控制需求，推荐使用 `WalletCoreProvider`，由宿主统一管理 wagmi config。
 
 ### 样式说明
 

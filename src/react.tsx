@@ -22,6 +22,7 @@ import {
   connect as wagmiConnect,
   disconnect as wagmiDisconnect,
   getConnection as getWagmiConnection,
+  getConnections as getWagmiConnections,
   sendTransaction as wagmiSendTransaction,
   signMessage as wagmiSignMessage,
   switchChain as wagmiSwitchChain,
@@ -328,6 +329,17 @@ function WalletProviderBase({
       ?? null;
   }, [normalizedConfig.sol.cluster]);
 
+
+  const disconnectAllEvmConnections = useCallback(async () => {
+    if (!evmAdapter) return;
+
+    const connections = getWagmiConnections(evmAdapter.config);
+    if (connections.length === 0) return;
+
+    for (const connection of connections) {
+      await wagmiDisconnect(evmAdapter.config, { connector: connection.connector });
+    }
+  }, [evmAdapter]);
   const connectSolWallet = useCallback(async (walletId: string, silent = false): Promise<void> => {
     if (!solAdapter) throw new WalletKitError(WalletErrorCode.ProviderNotReady, "Solana adapter is not available.");
     if (solConnectPromiseRef.current) return solConnectPromiseRef.current;
@@ -408,9 +420,15 @@ function WalletProviderBase({
       const connector = await resolveEvmConnector(options.walletId);
       if (!connector) throw new WalletKitError(WalletErrorCode.WalletNotFound, "EVM wallet not found.");
 
-      if (session.namespace === "evm" && session.connected && options.walletId !== session.walletId) {
-        const currentConnection = getWagmiConnection(evmAdapter.config);
-        if (currentConnection.connector) await wagmiDisconnect(evmAdapter.config, { connector: currentConnection.connector });
+      const currentConnection = getWagmiConnection(evmAdapter.config);
+      const isSwitchingWallet = session.namespace === "evm" && session.walletId !== options.walletId;
+      const hasStaleCurrentConnector = currentConnection.connector?.uid === connector.uid;
+      const hasOtherActiveConnections = getWagmiConnections(evmAdapter.config).some(
+        (connection) => connection.connector.uid !== connector.uid,
+      );
+
+      if (isSwitchingWallet || hasStaleCurrentConnector || hasOtherActiveConnections) {
+        await disconnectAllEvmConnections();
       }
 
       setError(null);
@@ -436,7 +454,7 @@ function WalletProviderBase({
       setSession({ ...DEFAULT_SESSION, status: "disconnected" });
       throw err;
     } finally { connectInFlightRef.current = false; }
-  }, [connectSolWallet, evmAdapter, resolveEvmConnector, session.connected, session.namespace, session.walletId]);
+  }, [connectSolWallet, disconnectAllEvmConnections, evmAdapter, resolveEvmConnector, session.namespace, session.walletId]);
 
   const disconnectWallet = useCallback(async (): Promise<void> => {
     try {
@@ -449,8 +467,7 @@ function WalletProviderBase({
         solConnectedAccountRef.current = null;
         clearPersistedSession(resolvedStorage, normalizedConfig.app.storageKey);
       } else if (session.namespace === "evm" && evmAdapter) {
-        const connection = getWagmiConnection(evmAdapter.config);
-        if (connection.connector) await wagmiDisconnect(evmAdapter.config, { connector: connection.connector });
+        await disconnectAllEvmConnections();
       }
       setError(null);
       setSession({ ...DEFAULT_SESSION, status: "disconnected" });
@@ -459,7 +476,7 @@ function WalletProviderBase({
       setError(err);
       throw err;
     }
-  }, [evmAdapter, normalizedConfig.app.storageKey, resolveSolWallet, resolvedStorage, session.namespace, session.walletId]);
+  }, [disconnectAllEvmConnections, evmAdapter, normalizedConfig.app.storageKey, resolveSolWallet, resolvedStorage, session.namespace, session.walletId]);
 
   const reconnectWallet = useCallback(async (): Promise<void> => {
     const persisted = readPersistedSession(resolvedStorage, normalizedConfig.app.storageKey);

@@ -2,6 +2,12 @@ import { useState } from "react";
 import { useConnectWallet } from "snk-wallet-kit";
 import type { CSSProperties } from "react";
 
+const EVM_CHAINS = [
+  { id: 1, label: "Switch to Mainnet" },
+  { id: 11155111, label: "Switch to Sepolia" },
+  { id: 31337, label: "Switch to Anvil" },
+] as const;
+
 const styles: Record<string, CSSProperties> = {
   section: {
     marginBottom: "20px",
@@ -77,6 +83,11 @@ export function WalletActions() {
     }
   };
 
+  const messageToSign =
+    session.namespace === "evm"
+      ? `${message}\n\nchainId: ${session.evm?.chainId ?? "unknown"}`
+      : message;
+
   return (
     <>
       <div style={styles.section}>
@@ -96,7 +107,7 @@ export function WalletActions() {
           onChange={(event) => setMessage(event.target.value)}
         />
         <div style={styles.grid}>
-          <button style={styles.button} onClick={() => void run(() => signMessage(message))}>
+          <button style={styles.button} onClick={() => void run(() => signMessage(messageToSign))}>
             Sign Message
           </button>
           <button
@@ -113,14 +124,16 @@ export function WalletActions() {
           >
             Send Dummy Tx
           </button>
-          {session.namespace === "evm" && (
-            <button
-              style={styles.button}
-              onClick={() => void run(() => switchChain({ chainId: 11155111 }))}
-            >
-              Switch to Sepolia
-            </button>
-          )}
+          {session.namespace === "evm" &&
+            EVM_CHAINS.map((chain) => (
+              <button
+                key={chain.id}
+                style={styles.button}
+                onClick={() => void run(() => switchChain({ chainId: chain.id }))}
+              >
+                {chain.label}
+              </button>
+            ))}
           <button style={styles.buttonSecondary} onClick={() => void run(() => reconnect())}>
             Reconnect
           </button>
